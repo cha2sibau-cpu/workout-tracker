@@ -255,7 +255,7 @@ input[type=date].date-input:focus{outline:none;border-color:var(--accent)}
 const PFX = 'workout_';
 
 // Day 1–7 in cycle
-const DAY_TYPES = ['Push','Pull','Mobility A','Lower/Core','Mobility B','Push','Rest'];
+const DAY_TYPES = ['Pull','Mobility A','Lower/Core','Mobility B','Push','Rest','Push'];
 
 const WORKOUTS = {
   Push: {
@@ -266,11 +266,11 @@ const WORKOUTS = {
       'Wall slides — 2×10'
     ],
     exercises: [
-      { name:'DB bench press',           sets:3, reps:'12',    warning:null },
-      { name:'Incline DB bench press',   sets:3, reps:'10',    warning:null },
-      { name:'Overhead DB press',        sets:3, reps:'10',    warning:'RPE cap: 7 always' },
-      { name:'Lateral raise',            sets:3, reps:'12–15', warning:null },
-      { name:'Overhead triceps extension',sets:3,reps:'10',    warning:null }
+      { name:'DB bench press',           sets:1, reps:'12',    warning:null },
+      { name:'Incline DB bench press',   sets:1, reps:'10',    warning:null },
+      { name:'Overhead DB press',        sets:1, reps:'10',    warning:'RPE cap: 7 always' },
+      { name:'Lateral raise',            sets:1, reps:'12–15', warning:null },
+      { name:'Overhead triceps extension',sets:1,reps:'10',    warning:null }
     ]
   },
   Pull: {
@@ -280,10 +280,10 @@ const WORKOUTS = {
       'Light DB row — 1×15 @ 40% working weight'
     ],
     exercises: [
-      { name:'One-arm DB row (bench supported)', sets:3, reps:'12', warning:null },
-      { name:'Seal row (chest supported)',        sets:3, reps:'10', warning:null },
-      { name:'Hammer curl',                       sets:3, reps:'10', warning:null },
-      { name:'Incline DB curl',                   sets:3, reps:'8',  warning:null }
+      { name:'One-arm DB row (bench supported)', sets:1, reps:'12', warning:null },
+      { name:'Seal row (chest supported)',        sets:1, reps:'10', warning:null },
+      { name:'Hammer curl',                       sets:1, reps:'10', warning:null },
+      { name:'Incline DB curl',                   sets:1, reps:'8',  warning:null }
     ]
   },
   'Mobility A': {
@@ -298,11 +298,11 @@ const WORKOUTS = {
   'Lower/Core': {
     warmup: ['Bodyweight BSS — 1×8 each leg (warm-up only)'],
     exercises: [
-      { name:'Bulgarian split squat', sets:3, reps:'8',  warning:'RPE cap: 7.5 always. Stop if knee tracks inward.' },
-      { name:'Romanian deadlift',     sets:3, reps:'12', warning:null },
-      { name:'Goblet squat',          sets:3, reps:'10', warning:null },
-      { name:'Weighted Russian twist',sets:3, reps:'12', warning:null },
-      { name:'Dead bugs',             sets:3, reps:'12', warning:null }
+      { name:'Bulgarian split squat', sets:1, reps:'8',  warning:'RPE cap: 7.5 always. Stop if knee tracks inward.' },
+      { name:'Romanian deadlift',     sets:1, reps:'12', warning:null },
+      { name:'Goblet squat',          sets:1, reps:'10', warning:null },
+      { name:'Weighted Russian twist',sets:1, reps:'12', warning:null },
+      { name:'Dead bugs',             sets:1, reps:'12', warning:null }
     ]
   },
   'Mobility B': {
