@@ -282,8 +282,9 @@ const WORKOUTS = {
     exercises: [
       { name:'One-arm DB row (bench supported)', sets:1, reps:'12', warning:null },
       { name:'Seal row (chest supported)',        sets:1, reps:'10', warning:null },
-      { name:'Hammer curl',                       sets:1, reps:'10', warning:null },
-      { name:'Incline DB curl',                   sets:1, reps:'8',  warning:null }
+      { name:'Hammer curl',                       sets:1, reps:'8',  warning:null },
+      { name:'Incline DB curl',                   sets:1, reps:'8',  warning:null },
+      { name:'Reverse fly (bench supported)',     sets:1, reps:'10', warning:null }
     ]
   },
   'Mobility A': {
@@ -453,9 +454,6 @@ function renderToday() {
         <div class="rest-title">Rest Day</div>
         <div class="rest-sub">Recovery is where adaptation happens.<br>Hydrate. Sleep. Let the gains arrive.</div>
       </div>`;
-    if (!todaySession) {
-      h += `<button class="btn btn-primary" onclick="markComplete('${today}','Rest',[])">Log Rest Day</button>`;
-    }
 
   } else if (workout.checklistOnly) {
     h += `<div class="card"><div class="card-title">${dayType}</div><ul class="checklist">`;
