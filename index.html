@@ -81,7 +81,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;backg
 
 /* ── Log table ── */
 .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -2px}
-table.log-tbl{border-collapse:collapse;min-width:480px;width:100%}
+table.log-tbl{border-collapse:collapse;min-width:560px;width:100%}
 .log-tbl th{font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.4px;padding:5px 4px;border-bottom:1px solid var(--border);text-align:center;white-space:nowrap}
 .log-tbl th:first-child{text-align:left;width:26px;padding-left:0}
 .log-tbl td{padding:3px 3px;text-align:center;vertical-align:middle}
@@ -92,6 +92,7 @@ table.log-tbl{border-collapse:collapse;min-width:480px;width:100%}
 .log-tbl col.c-set{width:28px}
 .log-tbl col.c-kg{width:62px}
 .log-tbl col.c-rep{width:52px}
+.log-tbl col.c-rpe{width:54px}
 .log-tbl col.c-note{width:auto;min-width:80px}
 
 /* ── Buttons ── */
@@ -189,9 +190,19 @@ table.prog-tbl{border-collapse:collapse;width:100%;font-size:14px}
 input[type=date].date-input{height:44px;border:1.5px solid var(--border);border-radius:10px;padding:0 12px;font-size:15px;background:var(--bg);color:var(--text);font-family:inherit;min-width:156px;-webkit-appearance:none}
 input[type=date].date-input:focus{outline:none;border-color:var(--accent)}
 
+/* ── Log view toggle ── */
+.view-toggle{display:flex;gap:6px;margin-bottom:14px}
+.vt-btn{flex:1;min-height:40px;border:1.5px solid var(--accent);border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s;background:transparent;color:var(--accent)}
+.vt-btn.active{background:var(--accent);color:#fff}
+
+/* ── Export row ── */
+.export-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.export-sel{flex:1;min-width:0;height:44px;border:1.5px solid var(--border);border-radius:11px;padding:0 12px;font-size:14px;background:var(--bg);color:var(--text);font-family:inherit}
+.export-sel:focus{outline:none;border-color:var(--accent)}
+
 /* ── Print ── */
 @media print{
-  .tab-bar,.btn,#tab-log .export-row{display:none!important}
+  .tab-bar,.btn,#tab-log .export-row,#tab-log .view-toggle{display:none!important}
   .tab-pane{display:block!important;padding:0}
   .session-body{display:block!important}
   body{padding:0;background:#fff}
@@ -254,7 +265,6 @@ input[type=date].date-input:focus{outline:none;border-color:var(--accent)}
 
 const PFX = 'workout_';
 
-// Day 1–7 in cycle
 const DAY_TYPES = ['Pull','Mobility A','Lower/Core','Mobility B','Push','Rest','Push'];
 
 const WORKOUTS = {
@@ -321,6 +331,66 @@ const WORKOUTS = {
 };
 
 // ════════════════════════════════════════════════════
+//  LOG VIEW STATE
+// ════════════════════════════════════════════════════
+
+let logView = 'list';
+
+// ════════════════════════════════════════════════════
+//  PHASE & EXERCISE HELPERS
+// ════════════════════════════════════════════════════
+
+function parseSets(itemText) {
+  const m = itemText.match(/(\d+)[×x]/i);
+  return m ? parseInt(m[1]) : 1;
+}
+
+function parseItem(itemText) {
+  const sep = itemText.indexOf(' — ');
+  if (sep === -1) return { name: itemText, sets: 1, detail: '' };
+  const name = itemText.slice(0, sep);
+  const rest = itemText.slice(sep + 3);
+  const m = rest.match(/^(\d+)[×x](.+)$/i);
+  if (m) return { name, sets: parseInt(m[1]), detail: m[2] };
+  return { name, sets: 1, detail: rest };
+}
+
+function getPhaseExercises(dayType, phase) {
+  const w = WORKOUTS[dayType];
+  if (!w || !w.exercises) return w;
+  const phase2FourSet = [
+    'DB bench press',
+    'One-arm DB row (bench supported)',
+    'Romanian deadlift',
+    'Goblet squat',
+    'Lateral raise',
+    'Reverse fly (bench supported)'
+  ];
+  const exercises = w.exercises.map(ex => {
+    let sets;
+    if (phase === 4)      sets = 2;
+    else if (phase === 1) sets = 3;
+    else if (phase === 2) sets = phase2FourSet.includes(ex.name) ? 4 : 3;
+    else                  sets = 4; // phase 3
+    return { ...ex, sets };
+  });
+  if (dayType === 'Pull' && phase >= 2) {
+    exercises.push({ name: 'Face pulls', sets: phase >= 3 ? 4 : 3, reps: '15', warning: null });
+  }
+  return { ...w, exercises };
+}
+
+function getLastWeight(exerciseName) {
+  const sessions = getSessions().slice().reverse();
+  for (const sess of sessions) {
+    if (!sess.exercises) continue;
+    const ex = sess.exercises.find(e => e.name === exerciseName);
+    if (ex && ex.sets && ex.sets.length > 0 && ex.sets[0].kg) return ex.sets[0].kg;
+  }
+  return null;
+}
+
+// ════════════════════════════════════════════════════
 //  STORAGE HELPERS
 // ════════════════════════════════════════════════════
 
@@ -363,7 +433,7 @@ function getCycleInfo(dateStr) {
   if (!start) return null;
   const days = daysBetween(start, dateStr);
   if (days < 0) return null;
-  const cycleDay  = (days % 7) + 1;          // 1–7
+  const cycleDay  = (days % 7) + 1;
   const weekNum   = Math.floor(days / 7) + 1;
   const phase     = weekNum <= 6 ? 1 : weekNum <= 13 ? 2 : weekNum <= 20 ? 3 : 4;
   const dayType   = DAY_TYPES[cycleDay - 1];
@@ -424,8 +494,8 @@ function renderToday() {
   }
 
   const { cycleDay, weekNum, phase, dayType } = info;
-  const workout  = WORKOUTS[dayType];
-  const sessions = getSessions();
+  const workout   = getPhaseExercises(dayType, phase);
+  const sessions  = getSessions();
   const todaySession = sessions.find(s => s.date === today);
 
   let h = `
@@ -456,14 +526,26 @@ function renderToday() {
       </div>`;
 
   } else if (workout.checklistOnly) {
+    const draft    = getDraft();
+    const dKey     = today + '|' + dayType;
+    const draftDay = draft[dKey] || {};
+
     h += `<div class="card"><div class="card-title">${dayType}</div><ul class="checklist">`;
     workout.items.forEach((item, i) => {
-      h += `<li class="cl-item" id="cli-${i}">
-        <input type="checkbox" id="clchk-${i}" onchange="toggleCL(${i},'cli-')">
-        <label for="clchk-${i}">${item}</label></li>`;
+      const parsed = parseItem(item);
+      for (let r = 1; r <= parsed.sets; r++) {
+        const isChecked = draftDay['mob_' + i + '_' + r] === true;
+        const label = parsed.sets > 1
+          ? `${parsed.name} &mdash; Set ${r} <span style="color:var(--text-secondary);font-weight:400">(${parsed.detail})</span>`
+          : item;
+        h += `<li class="cl-item${isChecked ? ' done' : ''}" id="cli-${i}-${r}">
+          <input type="checkbox" id="clchk-${i}-${r}" ${isChecked ? 'checked' : ''}
+            onchange="upMobDraft('${today}','${dayType}',${i},${r},this.checked)">
+          <label for="clchk-${i}-${r}">${label}</label></li>`;
+      }
     });
     h += `</ul></div>
-      <button class="btn btn-primary" onclick="markComplete('${today}','${dayType}',[])">Mark Complete ✓</button>`;
+      <button class="btn btn-primary" onclick="markCompleteMobility('${today}','${dayType}')">Mark Complete ✓</button>`;
 
   } else {
     // Warm-up
@@ -482,18 +564,19 @@ function renderToday() {
     const dKey     = today + '|' + dayType;
     const draftDay = draft[dKey] || {};
 
-    h += `<div class="card"><div class="card-title">Exercises</div>`;
+    h += `<div class="card"><div class="card-title">Exercises <span style="font-size:12px;font-weight:400;color:var(--text-secondary)">Phase ${phase} — ${workout.exercises[0].sets} set${workout.exercises[0].sets>1?'s':''} per exercise</span></div>`;
     workout.exercises.forEach((ex, ei) => {
       if (ei > 0) h += `<div class="ex-divider"></div>`;
+      const lastKg = getLastWeight(ex.name);
       h += `<div class="ex-block">
         <div class="ex-header">
           <div class="ex-name">${ex.name}</div>
-          <div class="ex-target">Target: ${ex.reps} reps per set</div>
+          <div class="ex-target">Target: ${ex.sets}×${ex.reps} reps${lastKg ? ` &nbsp;·&nbsp; Last weight: <strong>${lastKg} kg</strong>` : ''}</div>
           ${ex.warning ? `<div class="warn-label">⚠ ${ex.warning}</div>` : ''}
         </div>
         <div class="tbl-wrap"><table class="log-tbl">
-          <colgroup><col class="c-set"><col class="c-kg"><col class="c-rep"><col class="c-rep"><col class="c-rep"><col class="c-note"></colgroup>
-          <thead><tr><th>Set</th><th>kg</th><th>Rep 1</th><th>Rep 2</th><th>Rep 3</th><th>Note</th></tr></thead>
+          <colgroup><col class="c-set"><col class="c-kg"><col class="c-rep"><col class="c-rep"><col class="c-rep"><col class="c-rpe"><col class="c-note"></colgroup>
+          <thead><tr><th>Set</th><th>kg</th><th>Rep 1</th><th>Rep 2</th><th>Rep 3</th><th>RPE</th><th>Note</th></tr></thead>
           <tbody>`;
 
       const baseRep = ex.reps.split('–')[0];
@@ -502,7 +585,7 @@ function renderToday() {
         const sd = draftDay[sk] || {};
         h += `<tr>
           <td>${s}</td>
-          <td><input type="number" inputmode="decimal" placeholder="kg" value="${esc(sd.kg||'')}"
+          <td><input type="number" inputmode="decimal" placeholder="${lastKg ? lastKg : 'kg'}" value="${esc(sd.kg||'')}"
             oninput="upDraft('${today}','${dayType}',${ei},${s},'kg',this.value)"></td>
           <td><input type="number" inputmode="numeric" placeholder="${baseRep}" value="${esc(sd.r1||'')}"
             oninput="upDraft('${today}','${dayType}',${ei},${s},'r1',this.value)"></td>
@@ -510,6 +593,8 @@ function renderToday() {
             oninput="upDraft('${today}','${dayType}',${ei},${s},'r2',this.value)"></td>
           <td><input type="number" inputmode="numeric" placeholder="${baseRep}" value="${esc(sd.r3||'')}"
             oninput="upDraft('${today}','${dayType}',${ei},${s},'r3',this.value)"></td>
+          <td><input type="number" inputmode="decimal" step="0.5" min="6" max="10" placeholder="—" value="${esc(sd.rpe||'')}"
+            oninput="upDraft('${today}','${dayType}',${ei},${s},'rpe',this.value)"></td>
           <td><input type="text" placeholder="note" value="${esc(sd.note||'')}" class="note-inp"
             oninput="upDraft('${today}','${dayType}',${ei},${s},'note',this.value)"></td>
         </tr>`;
@@ -518,13 +603,48 @@ function renderToday() {
     });
     h += `</div>`;
 
-    // Mark complete button — reads draft at click time
     const dtSafe = dayType.replace(/'/g,"\\'");
     h += `<button class="btn btn-primary" onclick="markCompleteExercise('${today}','${dtSafe}')">Mark Complete ✓</button>`;
     h += `<div style="height:8px"></div>`;
   }
 
+  // Coming Up section
+  h += buildComingUp(today);
+
   el.innerHTML = h;
+}
+
+function buildComingUp(fromDateStr) {
+  let rows = '';
+  for (let i = 1; i <= 6; i++) {
+    const d = new Date(parseLocal(fromDateStr));
+    d.setDate(d.getDate() + i);
+    const dStr  = localDateStr(d);
+    const dInfo = getCycleInfo(dStr);
+    if (!dInfo) continue;
+    const wk       = WORKOUTS[dInfo.dayType];
+    const dayFmt   = parseLocal(dStr).toLocaleDateString('en-GB', {weekday:'short', day:'numeric', month:'short'});
+    const badgeCls = typeBadgeClass(dInfo.dayType);
+    let detail = '';
+    if (wk.rest) detail = 'Rest &amp; recovery';
+    else if (wk.checklistOnly) detail = wk.items.slice(0,2).map(it => parseItem(it).name).join(', ') + (wk.items.length > 2 ? '…' : '');
+    else detail = wk.exercises.slice(0,3).map(e => e.name).join(', ') + (wk.exercises.length > 3 ? '…' : '');
+    rows += `<div style="padding:9px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start">
+      <span class="badge ${badgeCls}" style="flex-shrink:0;margin-top:1px;font-size:12px">${dInfo.dayType}</span>
+      <div>
+        <div style="font-size:13px;font-weight:600">${dayFmt}</div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;line-height:1.3">${detail}</div>
+      </div>
+    </div>`;
+  }
+  if (!rows) return '';
+  return `<div class="card" style="margin-top:4px">
+    <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleUpcoming()">
+      <div style="font-size:17px;font-weight:600">Coming Up</div>
+      <span id="upcoming-chev" style="color:var(--text-secondary);font-size:18px;line-height:1">▾</span>
+    </div>
+    <div id="upcoming-body" style="display:none;margin-top:8px">${rows}</div>
+  </div>`;
 }
 
 function esc(s) {
@@ -535,6 +655,40 @@ function toggleCL(i, prefix) {
   const li  = document.getElementById(prefix + i);
   const chk = document.getElementById((prefix==='cli-'?'clchk-':'wuchk-') + i);
   li.classList.toggle('done', chk.checked);
+}
+
+function upMobDraft(date, dayType, itemIdx, roundIdx, checked) {
+  const draft = getDraft();
+  const dKey  = date + '|' + dayType;
+  if (!draft[dKey]) draft[dKey] = {};
+  draft[dKey]['mob_' + itemIdx + '_' + roundIdx] = checked;
+  saveDraft(draft);
+  const li = document.getElementById('cli-' + itemIdx + '-' + roundIdx);
+  if (li) li.classList.toggle('done', checked);
+}
+
+function markCompleteMobility(date, dayType) {
+  const draft    = getDraft();
+  const dKey     = date + '|' + dayType;
+  const draftDay = draft[dKey] || {};
+  const workout  = WORKOUTS[dayType];
+  const exercises = workout.items.map((item, i) => {
+    const parsed = parseItem(item);
+    const rounds = Array.from({ length: parsed.sets }, (_, r) =>
+      draftDay['mob_' + i + '_' + (r + 1)] === true
+    );
+    return { name: item, rounds };
+  });
+  markComplete(date, dayType, exercises);
+}
+
+function toggleUpcoming() {
+  const body = document.getElementById('upcoming-body');
+  const chev = document.getElementById('upcoming-chev');
+  if (!body) return;
+  const open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  chev.textContent = open ? '▴' : '▾';
 }
 
 function upDraft(date, dayType, ei, s, field, val) {
@@ -548,16 +702,18 @@ function upDraft(date, dayType, ei, s, field, val) {
 }
 
 function collectExercises(date, dayType) {
+  const info     = getCycleInfo(date);
+  const phase    = info ? info.phase : 1;
   const draft    = getDraft();
   const dKey     = date + '|' + dayType;
   const draftDay = draft[dKey] || {};
-  const workout  = WORKOUTS[dayType];
+  const workout  = getPhaseExercises(dayType, phase);
   if (!workout || !workout.exercises) return [];
   return workout.exercises.map((ex, ei) => {
     const sets = [];
     for (let s = 1; s <= ex.sets; s++) {
       const sd = draftDay[ei+'_'+s] || {};
-      sets.push({ set:s, kg:sd.kg||'', r1:sd.r1||'', r2:sd.r2||'', r3:sd.r3||'', note:sd.note||'' });
+      sets.push({ set:s, kg:sd.kg||'', r1:sd.r1||'', r2:sd.r2||'', r3:sd.r3||'', rpe:sd.rpe||'', note:sd.note||'' });
     }
     return { name: ex.name, sets };
   });
@@ -594,14 +750,30 @@ function markComplete(date, dayType, exercises) {
 //  LOG TAB
 // ════════════════════════════════════════════════════
 
+function setLogView(v) {
+  logView = v;
+  renderLog();
+}
+
 function renderLog() {
   const el       = document.getElementById('log-inner');
-  const sessions = getSessions().slice().reverse();
+  const sessions = getSessions();
+  const reversed = sessions.slice().reverse();
+
+  const weekOpts = getWeekOptions(sessions);
+  const selHtml  = weekOpts.length
+    ? weekOpts.map(o => `<option value="${o.value}">${o.label}</option>`).join('')
+    : '<option value="">No sessions to export</option>';
 
   let h = `
     <div class="ph"><div class="ph-title">Log</div></div>
-    <div class="export-row" style="margin-bottom:14px">
-      <button class="btn btn-outline btn-sm" onclick="exportWeek()">📤 Export This Week (Print / PDF)</button>
+    <div class="view-toggle">
+      <button class="vt-btn${logView==='list'?' active':''}" onclick="setLogView('list')">Sessions</button>
+      <button class="vt-btn${logView==='weekly'?' active':''}" onclick="setLogView('weekly')">Weekly</button>
+    </div>
+    <div class="export-row">
+      <select id="export-week-sel" class="export-sel">${selHtml}</select>
+      <button class="btn btn-outline btn-sm" style="flex-shrink:0;width:auto;padding:0 18px" onclick="exportSelectedWeek()"${!weekOpts.length?' disabled':''}>📤 PDF</button>
     </div>`;
 
   if (!sessions.length) {
@@ -610,12 +782,16 @@ function renderLog() {
       <div class="empty-title">No sessions yet</div>
       <div class="empty-sub">Complete your first workout in the Today tab</div>
     </div>`;
+  } else if (logView === 'weekly') {
+    h += renderWeeklyView(sessions);
   } else {
-    sessions.forEach((sess, idx) => {
+    reversed.forEach((sess, idx) => {
       const dateFmt  = fmtDate(sess.date, { weekday:'short', day:'numeric', month:'short' });
       const timeFmt  = new Date(sess.completedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
       const badgeCls = typeBadgeClass(sess.dayType);
-      const hasEx    = sess.exercises && sess.exercises.length > 0 && sess.exercises[0].sets;
+      const hasEx    = sess.exercises && sess.exercises.length > 0;
+      const isMob    = hasEx && sess.exercises[0].rounds !== undefined;
+      const hasRegEx = hasEx && sess.exercises[0].sets !== undefined && sess.exercises[0].sets;
 
       h += `
         <div class="session-card">
@@ -631,23 +807,34 @@ function renderLog() {
           </div>
           <div class="session-body" id="sbody-${idx}">`;
 
-      if (hasEx) {
+      if (isMob) {
+        sess.exercises.forEach(ex => {
+          h += `<div class="sess-ex">
+            <div class="sess-ex-name">${ex.name}</div>
+            <div style="font-size:13px;padding:4px 0;line-height:1.8">`;
+          ex.rounds.forEach((done, r) => {
+            h += `<span style="margin-right:14px">${done ? '✅' : '⬜'} Set ${r+1}</span>`;
+          });
+          h += `</div></div>`;
+        });
+      } else if (hasRegEx) {
         sess.exercises.forEach(ex => {
           h += `<div class="sess-ex">
             <div class="sess-ex-name">${ex.name}</div>
             <table class="view-tbl">
-              <thead><tr><th>Set</th><th>kg</th><th>Rep 1</th><th>Rep 2</th><th>Rep 3</th><th>Note</th></tr></thead>
+              <thead><tr><th>Set</th><th>kg</th><th>Rep 1</th><th>Rep 2</th><th>Rep 3</th><th>RPE</th><th>Note</th></tr></thead>
               <tbody>`;
           ex.sets.forEach(st => {
             h += `<tr>
               <td>${st.set}</td><td>${st.kg||'—'}</td>
               <td>${st.r1||'—'}</td><td>${st.r2||'—'}</td><td>${st.r3||'—'}</td>
+              <td>${st.rpe||'—'}</td>
               <td>${esc(st.note||'')}</td></tr>`;
           });
           h += `</tbody></table></div>`;
         });
       } else {
-        h += `<div style="padding-top:12px;font-size:14px;color:var(--text-secondary)">${sess.dayType} session — no exercise sets recorded</div>`;
+        h += `<div style="padding-top:12px;font-size:14px;color:var(--text-secondary)">${sess.dayType} session — no data recorded</div>`;
       }
 
       h += `</div></div>`;
@@ -664,15 +851,41 @@ function toggleSess(idx) {
   chev.classList.toggle('open', open);
 }
 
-function exportWeek() {
-  const now   = new Date();
-  const wkDay = now.getDay(); // 0=Sun
-  const wkStart = new Date(now); wkStart.setDate(now.getDate() - wkDay);
-  const wkEnd   = new Date(wkStart); wkEnd.setDate(wkStart.getDate() + 6);
-  const wsStr = localDateStr(wkStart);
-  const weStr = localDateStr(wkEnd);
+function getWeekOptions(sessions) {
+  if (!sessions) sessions = getSessions();
+  if (!sessions.length) return [];
+  const weeks = new Map();
+  sessions.forEach(s => {
+    const d   = parseLocal(s.date);
+    const dow = d.getDay();
+    const ws  = new Date(d);
+    ws.setDate(d.getDate() - dow);
+    const wsStr = localDateStr(ws);
+    weeks.set(wsStr, (weeks.get(wsStr) || 0) + 1);
+  });
+  return Array.from(weeks.entries())
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([wsStr, count]) => {
+      const we = new Date(parseLocal(wsStr));
+      we.setDate(we.getDate() + 6);
+      const label = `${fmtDate(wsStr,{day:'numeric',month:'short',year:'numeric'})} – ${fmtDate(localDateStr(we),{day:'numeric',month:'short'})} (${count} session${count>1?'s':''})`;
+      return { value: wsStr, label };
+    });
+}
 
-  const sessions = getSessions().filter(s => s.date >= wsStr && s.date <= weStr);
+function exportSelectedWeek() {
+  const sel = document.getElementById('export-week-sel');
+  if (!sel || !sel.value) return;
+  exportWeek(sel.value);
+}
+
+function exportWeek(weekStartStr) {
+  const wkStart = parseLocal(weekStartStr);
+  const wkEnd   = new Date(wkStart);
+  wkEnd.setDate(wkStart.getDate() + 6);
+  const weStr   = localDateStr(wkEnd);
+
+  const sessions = getSessions().filter(s => s.date >= weekStartStr && s.date <= weStr);
 
   let doc = `<!DOCTYPE html><html><head><title>Workout Log</title>
   <style>
@@ -686,21 +899,32 @@ function exportWeek() {
     th{background:#f5f5f5;font-weight:600}
     td:last-child{text-align:left}
     .no-sessions{color:#666;font-style:italic}
+    .mob-item{font-size:13px;margin:4px 0}
   </style></head><body>
-  <h1>Workout Log — Weekly Export</h1>
-  <div class="sub">${fmtDate(wsStr,{day:'numeric',month:'long',year:'numeric'})} – ${fmtDate(weStr,{day:'numeric',month:'long',year:'numeric'})}</div>`;
+  <h1>Workout Log</h1>
+  <div class="sub">${fmtDate(weekStartStr,{day:'numeric',month:'long',year:'numeric'})} &ndash; ${fmtDate(weStr,{day:'numeric',month:'long',year:'numeric'})}</div>`;
 
   if (!sessions.length) {
     doc += `<p class="no-sessions">No sessions logged this week.</p>`;
   } else {
     sessions.forEach(s => {
-      doc += `<h2>${fmtDate(s.date,{weekday:'long',day:'numeric',month:'long'})} — ${s.dayType}</h2>`;
-      if (s.exercises && s.exercises.length && s.exercises[0].sets) {
+      doc += `<h2>${fmtDate(s.date,{weekday:'long',day:'numeric',month:'long'})} &mdash; ${s.dayType}</h2>`;
+      const hasEx  = s.exercises && s.exercises.length > 0;
+      const isMob  = hasEx && s.exercises[0].rounds !== undefined;
+      const hasReg = hasEx && s.exercises[0].sets;
+      if (isMob) {
+        s.exercises.forEach(ex => {
+          doc += `<h3>${ex.name}</h3>`;
+          ex.rounds.forEach((done, r) => {
+            doc += `<div class="mob-item">${done ? '&#x2705;' : '&#x2B1C;'} Set ${r+1}</div>`;
+          });
+        });
+      } else if (hasReg) {
         s.exercises.forEach(ex => {
           doc += `<h3>${ex.name}</h3>
-            <table><tr><th>Set</th><th>kg</th><th>Rep 1</th><th>Rep 2</th><th>Rep 3</th><th>Note</th></tr>`;
+            <table><tr><th>Set</th><th>kg</th><th>Rep 1</th><th>Rep 2</th><th>Rep 3</th><th>RPE</th><th>Note</th></tr>`;
           ex.sets.forEach(st => {
-            doc += `<tr><td>${st.set}</td><td>${st.kg||'—'}</td><td>${st.r1||'—'}</td><td>${st.r2||'—'}</td><td>${st.r3||'—'}</td><td>${st.note||''}</td></tr>`;
+            doc += `<tr><td>${st.set}</td><td>${st.kg||'—'}</td><td>${st.r1||'—'}</td><td>${st.r2||'—'}</td><td>${st.r3||'—'}</td><td>${st.rpe||'—'}</td><td>${st.note||''}</td></tr>`;
           });
           doc += `</table>`;
         });
@@ -710,10 +934,109 @@ function exportWeek() {
 
   doc += `</body></html>`;
 
-  const pw = window.open('','_blank');
-  pw.document.write(doc);
-  pw.document.close();
-  pw.print();
+  const blob = new Blob([doc], { type: 'text/html' });
+  const url  = URL.createObjectURL(blob);
+  const pw   = window.open(url, '_blank');
+  if (pw) pw.addEventListener('load', () => { pw.focus(); pw.print(); });
+}
+
+function renderWeeklyView(sessions) {
+  const start = getStartDate();
+  const today = localDateStr();
+  if (!start) return `<div class="empty"><div class="empty-icon">📅</div><div class="empty-title">No start date set</div><div class="empty-sub">Go to Settings to set your program start date</div></div>`;
+
+  const sessionMap = {};
+  sessions.forEach(s => { sessionMap[s.date] = s; });
+
+  const totalDays  = daysBetween(start, today);
+  const totalWeeks = Math.floor(totalDays / 7) + 1;
+
+  const typeCounts = {};
+  const typeDone   = {};
+
+  let h = '';
+
+  for (let w = totalWeeks; w >= 1; w--) {
+    const weekOffset    = (w - 1) * 7;
+    const weekStartDate = new Date(parseLocal(start));
+    weekStartDate.setDate(weekStartDate.getDate() + weekOffset);
+    const weekEndDate = new Date(weekStartDate);
+    weekEndDate.setDate(weekStartDate.getDate() + 6);
+
+    const wsStr = localDateStr(weekStartDate);
+    const weStr = localDateStr(weekEndDate);
+    const wInfo = getCycleInfo(wsStr);
+    const phase = wInfo ? wInfo.phase : 1;
+
+    const wsFmt = fmtDate(wsStr, {day:'numeric', month:'short'});
+    const weFmt = fmtDate(weStr, {day:'numeric', month:'short'});
+
+    h += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">
+      <div style="padding:11px 16px;background:#f8f8fa;border-bottom:1px solid var(--border)">
+        <div style="font-weight:700;font-size:15px">Week ${w} &nbsp;<span style="font-size:12px;font-weight:400;color:var(--text-secondary)">Phase ${phase}</span></div>
+        <div style="font-size:12px;color:var(--text-secondary)">${wsFmt} &ndash; ${weFmt}</div>
+      </div>`;
+
+    for (let d = 0; d < 7; d++) {
+      const dayDate  = new Date(weekStartDate);
+      dayDate.setDate(weekStartDate.getDate() + d);
+      const dayStr   = localDateStr(dayDate);
+      const isFuture = dayStr > today;
+      const dayType  = DAY_TYPES[d];
+      const isRest   = dayType === 'Rest';
+      const done     = !!sessionMap[dayStr];
+
+      if (!isFuture && !isRest) {
+        typeCounts[dayType] = (typeCounts[dayType] || 0) + 1;
+        if (done) typeDone[dayType] = (typeDone[dayType] || 0) + 1;
+      }
+
+      const badgeCls = typeBadgeClass(dayType);
+      const dayFmt   = parseLocal(dayStr).toLocaleDateString('en-GB', {weekday:'short', day:'numeric'});
+
+      let statusHtml;
+      if (isRest)        statusHtml = `<span style="font-size:12px;color:var(--text-secondary)">Rest</span>`;
+      else if (isFuture) statusHtml = `<span style="font-size:12px;color:var(--text-secondary)">—</span>`;
+      else if (done)     statusHtml = `<span style="font-size:12px;color:var(--green);font-weight:600">✅ Done</span>`;
+      else               statusHtml = `<span style="font-size:12px;color:var(--red);font-weight:600">⬜ Missed</span>`;
+
+      const noBorder = d === 6 ? 'border-bottom:none' : 'border-bottom:1px solid var(--border)';
+      h += `<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;${noBorder};${isFuture?'opacity:.45':''}">
+        <span class="badge ${badgeCls}" style="min-width:80px;justify-content:center;font-size:12px">${dayType}</span>
+        <div style="flex:1;font-size:13px;color:var(--text-secondary)">${dayFmt}</div>
+        ${statusHtml}
+      </div>`;
+    }
+    h += `</div>`;
+  }
+
+  // Adherence summary
+  const uniqueTypes = [...new Set(DAY_TYPES.filter(t => t !== 'Rest'))];
+  h += `<div class="sec-label">Adherence by Day Type</div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="background:#f2f2f7">
+        <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Day Type</th>
+        <th style="padding:10px 14px;text-align:center;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Done</th>
+        <th style="padding:10px 14px;text-align:center;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Sched</th>
+        <th style="padding:10px 14px;text-align:center;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Miss%</th>
+      </tr></thead>
+      <tbody>`;
+  uniqueTypes.forEach(t => {
+    const sched    = typeCounts[t] || 0;
+    const doneCount= typeDone[t]   || 0;
+    const miss     = sched > 0 ? Math.round((1 - doneCount / sched) * 100) : null;
+    const badgeCls = typeBadgeClass(t);
+    h += `<tr style="border-top:1px solid var(--border)">
+      <td style="padding:10px 14px"><span class="badge ${badgeCls}">${t}</span></td>
+      <td style="padding:10px 14px;text-align:center;color:var(--green);font-weight:600">${doneCount}</td>
+      <td style="padding:10px 14px;text-align:center">${sched}</td>
+      <td style="padding:10px 14px;text-align:center;${miss !== null && miss > 50 ? 'color:var(--red);font-weight:600' : ''}">${miss !== null ? miss+'%' : '—'}</td>
+    </tr>`;
+  });
+  h += `</tbody></table></div>`;
+
+  return h;
 }
 
 // ════════════════════════════════════════════════════
