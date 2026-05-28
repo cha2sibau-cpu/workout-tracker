@@ -369,7 +369,7 @@ function getPhaseExercises(dayType, phase) {
   const exercises = w.exercises.map(ex => {
     let sets;
     if (phase === 4)      sets = 2;
-    else if (phase === 1) sets = 3;
+    else if (phase === 1) sets = 1;
     else if (phase === 2) sets = phase2FourSet.includes(ex.name) ? 4 : 3;
     else                  sets = 4; // phase 3
     return { ...ex, sets };
@@ -548,21 +548,24 @@ function renderToday() {
       <button class="btn btn-primary" onclick="markCompleteMobility('${today}','${dayType}')">Mark Complete ✓</button>`;
 
   } else {
+    const draft    = getDraft();
+    const dKey     = today + '|' + dayType;
+    const draftDay = draft[dKey] || {};
+
     // Warm-up
     if (workout.warmup && workout.warmup.length) {
       h += `<div class="card"><div class="card-title">Warm-Up</div><ul class="checklist">`;
       workout.warmup.forEach((item, i) => {
-        h += `<li class="cl-item" id="wu-${i}">
-          <input type="checkbox" id="wuchk-${i}" onchange="toggleCL(${i},'wu-')">
+        const isChecked = draftDay['wu_' + i] === true;
+        h += `<li class="cl-item${isChecked ? ' done' : ''}" id="wu-${i}">
+          <input type="checkbox" id="wuchk-${i}" ${isChecked ? 'checked' : ''}
+            onchange="upWarmupDraft('${today}','${dayType}',${i},this.checked)">
           <label for="wuchk-${i}">${item}</label></li>`;
       });
       h += `</ul></div>`;
     }
 
     // Exercises
-    const draft    = getDraft();
-    const dKey     = today + '|' + dayType;
-    const draftDay = draft[dKey] || {};
 
     h += `<div class="card"><div class="card-title">Exercises <span style="font-size:12px;font-weight:400;color:var(--text-secondary)">Phase ${phase} — ${workout.exercises[0].sets} set${workout.exercises[0].sets>1?'s':''} per exercise</span></div>`;
     workout.exercises.forEach((ex, ei) => {
@@ -593,8 +596,8 @@ function renderToday() {
             oninput="upDraft('${today}','${dayType}',${ei},${s},'r2',this.value)"></td>
           <td><input type="number" inputmode="numeric" placeholder="${baseRep}" value="${esc(sd.r3||'')}"
             oninput="upDraft('${today}','${dayType}',${ei},${s},'r3',this.value)"></td>
-          <td><input type="number" inputmode="decimal" step="0.5" min="6" max="10" placeholder="—" value="${esc(sd.rpe||'')}"
-            oninput="upDraft('${today}','${dayType}',${ei},${s},'rpe',this.value)"></td>
+          <td><input type="text" inputmode="decimal" placeholder="—" value="${esc(sd.rpe||'')}"
+            oninput="upDraft('${today}','${dayType}',${ei},${s},'rpe',this.value.replace(',','.'))"></td>
           <td><input type="text" placeholder="note" value="${esc(sd.note||'')}" class="note-inp"
             oninput="upDraft('${today}','${dayType}',${ei},${s},'note',this.value)"></td>
         </tr>`;
@@ -664,6 +667,16 @@ function upMobDraft(date, dayType, itemIdx, roundIdx, checked) {
   draft[dKey]['mob_' + itemIdx + '_' + roundIdx] = checked;
   saveDraft(draft);
   const li = document.getElementById('cli-' + itemIdx + '-' + roundIdx);
+  if (li) li.classList.toggle('done', checked);
+}
+
+function upWarmupDraft(date, dayType, i, checked) {
+  const draft = getDraft();
+  const dKey  = date + '|' + dayType;
+  if (!draft[dKey]) draft[dKey] = {};
+  draft[dKey]['wu_' + i] = checked;
+  saveDraft(draft);
+  const li = document.getElementById('wu-' + i);
   if (li) li.classList.toggle('done', checked);
 }
 
