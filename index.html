@@ -89,7 +89,6 @@ table.log-tbl{border-collapse:collapse;min-width:560px;width:100%}
 .log-tbl input{width:100%;min-height:46px;border:1.5px solid var(--border);border-radius:9px;padding:4px 5px;font-size:15px;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;transition:border-color .15s,background .15s;-webkit-appearance:none}
 .log-tbl input:focus{outline:none;border-color:var(--accent);background:var(--accent-light)}
 .log-tbl input.note-inp{text-align:left;font-size:13px}
-.log-tbl col.c-set{width:28px}
 .log-tbl col.c-kg{width:62px}
 .log-tbl col.c-rep{width:52px}
 .log-tbl col.c-rpe{width:54px}
@@ -294,7 +293,8 @@ const WORKOUTS = {
       { name:'Seal row (chest supported)',        sets:1, reps:'10', warning:null },
       { name:'Hammer curl',                       sets:1, reps:'8',  warning:null },
       { name:'Incline DB curl',                   sets:1, reps:'8',  warning:null },
-      { name:'Reverse fly (bench supported)',     sets:1, reps:'10', warning:null }
+      { name:'Reverse fly (bench supported)',     sets:1, reps:'10', warning:null },
+      { name:'Face pulls',                        sets:1, reps:'15', warning:null }
     ]
   },
   'Mobility A': {
@@ -356,28 +356,7 @@ function parseItem(itemText) {
 }
 
 function getPhaseExercises(dayType, phase) {
-  const w = WORKOUTS[dayType];
-  if (!w || !w.exercises) return w;
-  const phase2FourSet = [
-    'DB bench press',
-    'One-arm DB row (bench supported)',
-    'Romanian deadlift',
-    'Goblet squat',
-    'Lateral raise',
-    'Reverse fly (bench supported)'
-  ];
-  const exercises = w.exercises.map(ex => {
-    let sets;
-    if (phase === 4)      sets = 2;
-    else if (phase === 1) sets = 1;
-    else if (phase === 2) sets = phase2FourSet.includes(ex.name) ? 4 : 3;
-    else                  sets = 4; // phase 3
-    return { ...ex, sets };
-  });
-  if (dayType === 'Pull' && phase >= 2) {
-    exercises.push({ name: 'Face pulls', sets: phase >= 3 ? 4 : 3, reps: '15', warning: null });
-  }
-  return { ...w, exercises };
+  return WORKOUTS[dayType];
 }
 
 function getLastWeight(exerciseName) {
@@ -567,19 +546,19 @@ function renderToday() {
 
     // Exercises
 
-    h += `<div class="card"><div class="card-title">Exercises <span style="font-size:12px;font-weight:400;color:var(--text-secondary)">Phase ${phase} — ${workout.exercises[0].sets} set${workout.exercises[0].sets>1?'s':''} per exercise</span></div>`;
+    h += `<div class="card"><div class="card-title">Exercises</div>`;
     workout.exercises.forEach((ex, ei) => {
       if (ei > 0) h += `<div class="ex-divider"></div>`;
       const lastKg = getLastWeight(ex.name);
       h += `<div class="ex-block">
         <div class="ex-header">
           <div class="ex-name">${ex.name}</div>
-          <div class="ex-target">Target: ${ex.sets}×${ex.reps} reps${lastKg ? ` &nbsp;·&nbsp; Last weight: <strong>${lastKg} kg</strong>` : ''}</div>
+          <div class="ex-target">Target: ${ex.reps} reps${lastKg ? ` &nbsp;·&nbsp; Last weight: <strong>${lastKg} kg</strong>` : ''}</div>
           ${ex.warning ? `<div class="warn-label">⚠ ${ex.warning}</div>` : ''}
         </div>
         <div class="tbl-wrap"><table class="log-tbl">
-          <colgroup><col class="c-set"><col class="c-kg"><col class="c-rep"><col class="c-rep"><col class="c-rep"><col class="c-rpe"><col class="c-note"></colgroup>
-          <thead><tr><th>Set</th><th>kg</th><th>Rep 1</th><th>Rep 2</th><th>Rep 3</th><th>RPE</th><th>Note</th></tr></thead>
+          <colgroup><col class="c-kg"><col class="c-rep"><col class="c-rep"><col class="c-rep"><col class="c-rpe"><col class="c-note"></colgroup>
+          <thead><tr><th>kg</th><th>Rep 1</th><th>Rep 2</th><th>Rep 3</th><th>RPE</th><th>Note</th></tr></thead>
           <tbody>`;
 
       const baseRep = ex.reps.split('–')[0];
@@ -587,7 +566,6 @@ function renderToday() {
         const sk = ei + '_' + s;
         const sd = draftDay[sk] || {};
         h += `<tr>
-          <td>${s}</td>
           <td><input type="number" inputmode="decimal" placeholder="${lastKg ? lastKg : 'kg'}" value="${esc(sd.kg||'')}"
             oninput="upDraft('${today}','${dayType}',${ei},${s},'kg',this.value)"></td>
           <td><input type="number" inputmode="numeric" placeholder="${baseRep}" value="${esc(sd.r1||'')}"
@@ -835,11 +813,11 @@ function renderLog() {
           h += `<div class="sess-ex">
             <div class="sess-ex-name">${ex.name}</div>
             <table class="view-tbl">
-              <thead><tr><th>Set</th><th>kg</th><th>Rep 1</th><th>Rep 2</th><th>Rep 3</th><th>RPE</th><th>Note</th></tr></thead>
+              <thead><tr><th>kg</th><th>Rep 1</th><th>Rep 2</th><th>Rep 3</th><th>RPE</th><th>Note</th></tr></thead>
               <tbody>`;
           ex.sets.forEach(st => {
             h += `<tr>
-              <td>${st.set}</td><td>${st.kg||'—'}</td>
+              <td>${st.kg||'—'}</td>
               <td>${st.r1||'—'}</td><td>${st.r2||'—'}</td><td>${st.r3||'—'}</td>
               <td>${st.rpe||'—'}</td>
               <td>${esc(st.note||'')}</td></tr>`;
@@ -935,9 +913,9 @@ function exportWeek(weekStartStr) {
       } else if (hasReg) {
         s.exercises.forEach(ex => {
           doc += `<h3>${ex.name}</h3>
-            <table><tr><th>Set</th><th>kg</th><th>Rep 1</th><th>Rep 2</th><th>Rep 3</th><th>RPE</th><th>Note</th></tr>`;
+            <table><tr><th>kg</th><th>Rep 1</th><th>Rep 2</th><th>Rep 3</th><th>RPE</th><th>Note</th></tr>`;
           ex.sets.forEach(st => {
-            doc += `<tr><td>${st.set}</td><td>${st.kg||'—'}</td><td>${st.r1||'—'}</td><td>${st.r2||'—'}</td><td>${st.r3||'—'}</td><td>${st.rpe||'—'}</td><td>${st.note||''}</td></tr>`;
+            doc += `<tr><td>${st.kg||'—'}</td><td>${st.r1||'—'}</td><td>${st.r2||'—'}</td><td>${st.r3||'—'}</td><td>${st.rpe||'—'}</td><td>${st.note||''}</td></tr>`;
           });
           doc += `</table>`;
         });
