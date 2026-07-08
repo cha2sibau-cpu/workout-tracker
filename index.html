@@ -79,20 +79,37 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;backg
 .ex-target{font-size:12px;color:var(--text-secondary);margin-top:2px}
 .ex-divider{height:1px;background:var(--border);margin:16px 0}
 
+/* ── Recommendation badge ── */
+.rec-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:10px;font-size:12px;font-weight:600;margin-top:5px}
+.rec-up{background:#e8f9ee;color:#1a7f3c}
+.rec-same{background:var(--accent-light);color:var(--accent)}
+.rec-down{background:var(--red-bg);color:var(--red)}
+.rec-new{background:#f2f2f7;color:var(--text-secondary)}
+.last-sess{font-size:11px;color:var(--text-secondary);margin-top:3px;padding-left:1px}
+
+/* ── Previous session note ── */
+.prev-note{background:#fffbe6;border:1px solid #ffe066;border-radius:9px;padding:7px 10px;margin-top:7px;font-size:12px;color:#7a6000;line-height:1.5}
+
 /* ── Log table ── */
 .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -2px}
-table.log-tbl{border-collapse:collapse;min-width:560px;width:100%}
+table.log-tbl{border-collapse:collapse;min-width:420px;width:100%}
 .log-tbl th{font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.4px;padding:5px 4px;border-bottom:1px solid var(--border);text-align:center;white-space:nowrap}
-.log-tbl th:first-child{text-align:left;width:26px;padding-left:0}
+.log-tbl th:first-child{text-align:left;width:30px;padding-left:0}
 .log-tbl td{padding:3px 3px;text-align:center;vertical-align:middle}
 .log-tbl td:first-child{font-size:13px;font-weight:600;color:var(--text-secondary);text-align:left;padding-left:0}
 .log-tbl input{width:100%;min-height:46px;border:1.5px solid var(--border);border-radius:9px;padding:4px 5px;font-size:15px;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;transition:border-color .15s,background .15s;-webkit-appearance:none}
 .log-tbl input:focus{outline:none;border-color:var(--accent);background:var(--accent-light)}
 .log-tbl input.note-inp{text-align:left;font-size:13px}
+.log-tbl col.c-set{width:30px}
 .log-tbl col.c-kg{width:62px}
-.log-tbl col.c-rep{width:52px}
+.log-tbl col.c-reps{width:58px}
 .log-tbl col.c-rpe{width:54px}
 .log-tbl col.c-note{width:auto;min-width:80px}
+
+/* ── Farmer carry weight input ── */
+.carry-kg-inp{display:inline-block;width:70px;min-height:36px;border:1.5px solid var(--border);border-radius:8px;padding:4px 6px;font-size:14px;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;margin-left:8px;vertical-align:middle;-webkit-appearance:none}
+.carry-kg-inp:focus{outline:none;border-color:var(--accent);background:var(--accent-light)}
+.carry-hint{font-size:11px;color:var(--text-secondary);padding:2px 0 6px 34px}
 
 /* ── Buttons ── */
 .btn{display:block;width:100%;min-height:52px;border:none;border-radius:14px;font-size:17px;font-weight:600;cursor:pointer;transition:opacity .15s,transform .1s;font-family:inherit}
@@ -275,11 +292,11 @@ const WORKOUTS = {
       'Wall slides — 2×10'
     ],
     exercises: [
-      { name:'DB bench press',           sets:1, reps:'12',    warning:null },
-      { name:'Incline DB bench press',   sets:1, reps:'10',    warning:null },
-      { name:'Overhead DB press',        sets:1, reps:'10',    warning:'RPE cap: 7 always' },
-      { name:'Lateral raise',            sets:1, reps:'12–15', warning:null },
-      { name:'Overhead triceps extension',sets:1,reps:'10',    warning:null }
+      { name:'DB bench press',           reps:'12',    warning:null },
+      { name:'Incline DB bench press',   reps:'10',    warning:null },
+      { name:'Overhead DB press',        reps:'10',    warning:'RPE cap: 7 always' },
+      { name:'Lateral raise',            reps:'12–15', warning:null },
+      { name:'Overhead triceps extension',reps:'10',   warning:null }
     ]
   },
   Pull: {
@@ -290,12 +307,12 @@ const WORKOUTS = {
       'Light DB row — 1×15 @ 40% working weight'
     ],
     exercises: [
-      { name:'One-arm DB row (bench supported)', sets:1, reps:'12', warning:null },
-      { name:'Seal row (chest supported)',        sets:1, reps:'10', warning:null },
-      { name:'Hammer curl',                       sets:1, reps:'8',  warning:null },
-      { name:'Incline DB curl',                   sets:1, reps:'8',  warning:null },
-      { name:'Reverse fly (bench supported)',     sets:1, reps:'10', warning:null },
-      { name:'Face pulls',                        sets:1, reps:'15', warning:null }
+      { name:'One-arm DB row (bench supported)', reps:'12', warning:null },
+      { name:'Seal row (chest supported)',        reps:'10', warning:null },
+      { name:'Hammer curl',                       reps:'8',  warning:null },
+      { name:'Incline DB curl',                   reps:'8',  warning:null },
+      { name:'Reverse fly (bench supported)',     reps:'10', warning:null },
+      { name:'Face pulls',                        reps:'15', warning:null }
     ]
   },
   'Mobility A': {
@@ -315,11 +332,11 @@ const WORKOUTS = {
       'Bodyweight BSS — 1×8 each leg (warm-up only)'
     ],
     exercises: [
-      { name:'Bulgarian split squat', sets:1, reps:'8',  warning:'RPE cap: 7.5 always. Stop if knee tracks inward.' },
-      { name:'Romanian deadlift',     sets:1, reps:'12', warning:null },
-      { name:'Goblet squat',          sets:1, reps:'10', warning:null },
-      { name:'Weighted Russian twist',sets:1, reps:'12', warning:null },
-      { name:'Dead bugs',             sets:1, reps:'12', warning:null }
+      { name:'Bulgarian split squat', reps:'8',  warning:'RPE cap: 7.5 always. Stop if knee tracks inward.' },
+      { name:'Romanian deadlift',     reps:'12', warning:null },
+      { name:'Goblet squat',          reps:'10', warning:null },
+      { name:'Weighted Russian twist',reps:'12', warning:null },
+      { name:'Dead bugs',             reps:'12', warning:null }
     ]
   },
   'Mobility B': {
@@ -363,6 +380,136 @@ function parseItem(itemText) {
 
 function getPhaseExercises(dayType, phase) {
   return WORKOUTS[dayType];
+}
+
+// Returns how many sets for this exercise at current phase
+function getSetsForPhase(exerciseName, phase) {
+  if (phase >= 4) return 2;
+  if (phase === 3) return 4;
+  if (phase === 2) {
+    const fourSet = [
+      'DB bench press','One-arm DB row (bench supported)','Seal row (chest supported)',
+      'Romanian deadlift','Goblet squat','Bulgarian split squat',
+      'Lateral raise','Reverse fly (bench supported)','Face pulls'
+    ];
+    return fourSet.includes(exerciseName) ? 4 : 3;
+  }
+  return 3; // Phase 1
+}
+
+// Weight increment per exercise type for progressive overload recommendations
+function getWeightIncrement(exerciseName) {
+  if (exerciseName === 'Overhead DB press') return 1;
+  const isolation = [
+    'Lateral raise','Hammer curl','Incline DB curl',
+    'Reverse fly (bench supported)','Overhead triceps extension',
+    'Weighted Russian twist','Face pulls'
+  ];
+  if (isolation.includes(exerciseName)) return 1;
+  return 2.5;
+}
+
+// Returns recommendation object based on previous sessions
+function getExerciseRecommendation(exerciseName, targetRepsStr, phase) {
+  const sessions = getSessions().slice().reverse();
+  for (const sess of sessions) {
+    if (!sess.exercises) continue;
+    const ex = sess.exercises.find(e => e.name === exerciseName);
+    if (!ex || !ex.sets || !ex.sets.length) continue;
+
+    // Normalize sets to { kg, reps, rpe } regardless of old/new format
+    let allSets = [];
+    const firstSet = ex.sets[0];
+    if (firstSet.reps !== undefined) {
+      // New format: each row is one set
+      allSets = ex.sets.map(s => ({ kg: s.kg, reps: s.reps, rpe: s.rpe }));
+    } else if (firstSet.r1 !== undefined) {
+      // Old format: r1/r2/r3 are the three sets within one row
+      const s = firstSet;
+      if (s.r1) allSets.push({ kg: s.kg, reps: s.r1, rpe: s.rpe });
+      if (s.r2) allSets.push({ kg: s.kg, reps: s.r2, rpe: s.rpe });
+      if (s.r3) allSets.push({ kg: s.kg, reps: s.r3, rpe: s.rpe });
+    }
+
+    const filledSets = allSets.filter(s => s.reps && String(s.reps).trim());
+    if (!filledSets.length) continue;
+
+    const parts = targetRepsStr.split('–');
+    const bottomTarget = parseInt(parts[0]);
+    const topTarget = parts.length > 1 ? parseInt(parts[1]) : bottomTarget;
+
+    const avgReps = filledSets.reduce((sum, s) => sum + (parseInt(s.reps) || 0), 0) / filledSets.length;
+    const rpeVals = filledSets.map(s => parseFloat(s.rpe)).filter(r => !isNaN(r));
+    const avgRPE = rpeVals.length ? rpeVals.reduce((a, b) => a + b, 0) / rpeVals.length : null;
+    const lastKg = parseFloat(allSets.find(s => s.kg)?.kg) || 0;
+
+    // Build last session summary
+    const repsDisplay = filledSets.map(s => s.reps).join('/');
+    const kgDisplay = lastKg > 0 ? lastKg + ' kg · ' : '';
+    const rpeDisplay = avgRPE !== null ? ' · RPE ' + avgRPE.toFixed(1).replace(/\.0$/, '') : '';
+    const lastSummary = `${kgDisplay}${repsDisplay} reps${rpeDisplay}`;
+
+    const recSets = getSetsForPhase(exerciseName, phase);
+    const inc = getWeightIncrement(exerciseName);
+    let recKg = lastKg;
+    let dir = 'same';
+    let msg = 'On track — maintain weight';
+
+    const gapFromBottom = bottomTarget - avgReps;
+    if (lastKg <= 0) {
+      dir = 'new';
+      msg = 'No prior weight — start light';
+    } else if (avgReps >= topTarget && (avgRPE === null || avgRPE <= 7.5)) {
+      recKg = lastKg + inc;
+      dir = 'up';
+      msg = 'Hit top of range at low RPE → increase';
+    } else if (avgReps >= topTarget) {
+      recKg = lastKg + inc;
+      dir = 'up';
+      msg = 'Consistently hit top of rep range';
+    } else if (gapFromBottom <= 1.5) {
+      dir = 'same';
+      msg = 'Close to target — maintain weight';
+    } else {
+      recKg = Math.max(0, lastKg - inc);
+      dir = 'down';
+      msg = 'Significantly below target reps — reduce weight';
+    }
+
+    return { sets: recSets, reps: targetRepsStr, kg: recKg, dir, msg, lastSummary };
+  }
+  return null;
+}
+
+// Returns notes from the most recent session for an exercise
+function getPreviousNotes(exerciseName) {
+  const sessions = getSessions().slice().reverse();
+  for (const sess of sessions) {
+    if (!sess.exercises) continue;
+    const ex = sess.exercises.find(e => e.name === exerciseName);
+    if (!ex || !ex.sets) continue;
+    const notes = [];
+    ex.sets.forEach(s => {
+      if (s.note && s.note.trim()) notes.push(s.note.trim());
+    });
+    if (notes.length) return notes;
+  }
+  return [];
+}
+
+// Returns the last logged weight for farmer's carry
+function getLastCarryWeight() {
+  const sessions = getSessions().slice().reverse();
+  for (const sess of sessions) {
+    if (!sess.exercises) continue;
+    const carry = sess.exercises.find(e => e.name === "Farmer's carry");
+    if (!carry) continue;
+    if (carry.weights) {
+      const w = carry.weights.find(x => x && parseFloat(x) > 0);
+      if (w) return w;
+    }
+  }
+  return null;
 }
 
 function getLastWeight(exerciseName) {
@@ -514,19 +661,35 @@ function renderToday() {
     const draft    = getDraft();
     const dKey     = today + '|' + dayType;
     const draftDay = draft[dKey] || {};
+    const lastCarryKg = getLastCarryWeight();
 
     h += `<div class="card"><div class="card-title">${dayType}</div><ul class="checklist">`;
     workout.items.forEach((item, i) => {
       const parsed = parseItem(item);
+      const isCarry = parsed.name === "Farmer's carry";
       for (let r = 1; r <= parsed.sets; r++) {
         const isChecked = draftDay['mob_' + i + '_' + r] === true;
+        const carryKg = draftDay['mob_' + i + '_' + r + '_kg'] || '';
         const label = parsed.sets > 1
           ? `${parsed.name} &mdash; Set ${r} <span style="color:var(--text-secondary);font-weight:400">(${parsed.detail})</span>`
           : item;
+
+        let carryInput = '';
+        if (isCarry) {
+          carryInput = `<input type="number" inputmode="decimal" step="0.5"
+            class="carry-kg-inp" placeholder="${lastCarryKg || 'kg'}" value="${esc(carryKg)}"
+            onclick="event.stopPropagation()"
+            oninput="upCarryDraft('${today}','${dayType}',${i},${r},this.value.replace(',','.'))">`;
+        }
+
         h += `<li class="cl-item${isChecked ? ' done' : ''}" id="cli-${i}-${r}">
           <input type="checkbox" id="clchk-${i}-${r}" ${isChecked ? 'checked' : ''}
             onchange="upMobDraft('${today}','${dayType}',${i},${r},this.checked)">
-          <label for="clchk-${i}-${r}">${label}</label></li>`;
+          <label for="clchk-${i}-${r}">${label}</label>${carryInput}</li>`;
+      }
+
+      if (isCarry && lastCarryKg) {
+        h += `<div class="carry-hint">Last carry: <strong>${lastCarryKg} kg</strong></div>`;
       }
     });
     h += `</ul></div>
@@ -550,36 +713,57 @@ function renderToday() {
       h += `</ul></div>`;
     }
 
-    // Exercises
-
+    // Exercises — one row per set
     h += `<div class="card"><div class="card-title">Exercises</div>`;
     workout.exercises.forEach((ex, ei) => {
       if (ei > 0) h += `<div class="ex-divider"></div>`;
-      const lastKg = getLastWeight(ex.name);
+
+      const numSets = getSetsForPhase(ex.name, phase);
+      const rec = getExerciseRecommendation(ex.name, ex.reps, phase);
+      const prevNotes = getPreviousNotes(ex.name);
+
+      // Recommendation display
+      let recHtml = '';
+      if (!rec) {
+        recHtml = `<div class="rec-badge rec-new">No prior data — start light</div>`;
+      } else {
+        const dirIcon = rec.dir === 'up' ? '↑' : rec.dir === 'down' ? '↓' : '→';
+        const dirClass = rec.dir === 'up' ? 'rec-up' : rec.dir === 'down' ? 'rec-down' : rec.dir === 'new' ? 'rec-new' : 'rec-same';
+        const kgText = rec.kg > 0 ? ` @ ${rec.kg} kg` : '';
+        recHtml = `
+          <div class="rec-badge ${dirClass}">${dirIcon} Rec: ${rec.sets}×${rec.reps}${kgText}</div>
+          <div class="last-sess">Last: ${rec.lastSummary}</div>`;
+      }
+
+      // Previous session notes
+      let noteHtml = '';
+      if (prevNotes.length) {
+        noteHtml = `<div class="prev-note">📝 Last session: ${prevNotes.map(n => `"${esc(n)}"`).join(' · ')}</div>`;
+      }
+
       h += `<div class="ex-block">
         <div class="ex-header">
           <div class="ex-name">${ex.name}</div>
-          <div class="ex-target">Target: ${ex.reps} reps${lastKg ? ` &nbsp;·&nbsp; Last weight: <strong>${lastKg} kg</strong>` : ''}</div>
+          <div class="ex-target">Target: ${ex.reps} reps</div>
           ${ex.warning ? `<div class="warn-label">⚠ ${ex.warning}</div>` : ''}
+          ${recHtml}${noteHtml}
         </div>
         <div class="tbl-wrap"><table class="log-tbl">
-          <colgroup><col class="c-kg"><col class="c-rep"><col class="c-rep"><col class="c-rep"><col class="c-rpe"><col class="c-note"></colgroup>
-          <thead><tr><th>kg</th><th>Rep 1</th><th>Rep 2</th><th>Rep 3</th><th>RPE</th><th>Note</th></tr></thead>
+          <colgroup><col class="c-set"><col class="c-kg"><col class="c-reps"><col class="c-rpe"><col class="c-note"></colgroup>
+          <thead><tr><th>Set</th><th>kg</th><th>Reps</th><th>RPE</th><th>Note</th></tr></thead>
           <tbody>`;
 
       const baseRep = ex.reps.split('–')[0];
-      for (let s = 1; s <= ex.sets; s++) {
+      const kgPlaceholder = rec && rec.kg > 0 ? String(rec.kg) : 'kg';
+      for (let s = 1; s <= numSets; s++) {
         const sk = ei + '_' + s;
         const sd = draftDay[sk] || {};
         h += `<tr>
-          <td><input type="number" inputmode="decimal" placeholder="${lastKg ? lastKg : 'kg'}" value="${esc(sd.kg||'')}"
-            oninput="upDraft('${today}','${dayType}',${ei},${s},'kg',this.value)"></td>
-          <td><input type="number" inputmode="numeric" placeholder="${baseRep}" value="${esc(sd.r1||'')}"
-            oninput="upDraft('${today}','${dayType}',${ei},${s},'r1',this.value)"></td>
-          <td><input type="number" inputmode="numeric" placeholder="${baseRep}" value="${esc(sd.r2||'')}"
-            oninput="upDraft('${today}','${dayType}',${ei},${s},'r2',this.value)"></td>
-          <td><input type="number" inputmode="numeric" placeholder="${baseRep}" value="${esc(sd.r3||'')}"
-            oninput="upDraft('${today}','${dayType}',${ei},${s},'r3',this.value)"></td>
+          <td>${s}</td>
+          <td><input type="number" inputmode="decimal" step="0.5" placeholder="${kgPlaceholder}" value="${esc(sd.kg||'')}"
+            oninput="upDraft('${today}','${dayType}',${ei},${s},'kg',this.value.replace(',','.'))"></td>
+          <td><input type="number" inputmode="numeric" placeholder="${baseRep}" value="${esc(sd.reps||'')}"
+            oninput="upDraft('${today}','${dayType}',${ei},${s},'reps',this.value)"></td>
           <td><input type="text" inputmode="decimal" placeholder="—" value="${esc(sd.rpe||'')}"
             oninput="upDraft('${today}','${dayType}',${ei},${s},'rpe',this.value.replace(',','.'))"></td>
           <td><input type="text" placeholder="note" value="${esc(sd.note||'')}" class="note-inp"
@@ -654,6 +838,14 @@ function upMobDraft(date, dayType, itemIdx, roundIdx, checked) {
   if (li) li.classList.toggle('done', checked);
 }
 
+function upCarryDraft(date, dayType, itemIdx, roundIdx, kg) {
+  const draft = getDraft();
+  const dKey  = date + '|' + dayType;
+  if (!draft[dKey]) draft[dKey] = {};
+  draft[dKey]['mob_' + itemIdx + '_' + roundIdx + '_kg'] = kg;
+  saveDraft(draft);
+}
+
 function upWarmupDraft(date, dayType, i, checked) {
   const draft = getDraft();
   const dKey  = date + '|' + dayType;
@@ -671,9 +863,16 @@ function markCompleteMobility(date, dayType) {
   const workout  = WORKOUTS[dayType];
   const exercises = workout.items.map((item, i) => {
     const parsed = parseItem(item);
+    const isCarry = parsed.name === "Farmer's carry";
     const rounds = Array.from({ length: parsed.sets }, (_, r) =>
       draftDay['mob_' + i + '_' + (r + 1)] === true
     );
+    if (isCarry) {
+      const weights = Array.from({ length: parsed.sets }, (_, r) =>
+        draftDay['mob_' + i + '_' + (r + 1) + '_kg'] || ''
+      );
+      return { name: parsed.name, rounds, weights };
+    }
     return { name: item, rounds };
   });
   markComplete(date, dayType, exercises);
@@ -707,10 +906,11 @@ function collectExercises(date, dayType) {
   const workout  = getPhaseExercises(dayType, phase);
   if (!workout || !workout.exercises) return [];
   return workout.exercises.map((ex, ei) => {
+    const numSets = getSetsForPhase(ex.name, phase);
     const sets = [];
-    for (let s = 1; s <= ex.sets; s++) {
+    for (let s = 1; s <= numSets; s++) {
       const sd = draftDay[ei+'_'+s] || {};
-      sets.push({ set:s, kg:sd.kg||'', r1:sd.r1||'', r2:sd.r2||'', r3:sd.r3||'', rpe:sd.rpe||'', note:sd.note||'' });
+      sets.push({ set:s, kg:sd.kg||'', reps:sd.reps||'', rpe:sd.rpe||'', note:sd.note||'' });
     }
     return { name: ex.name, sets };
   });
@@ -750,6 +950,35 @@ function markComplete(date, dayType, exercises) {
 function setLogView(v) {
   logView = v;
   renderLog();
+}
+
+// Render a set row from log data, handling both old and new formats
+function renderSetRow(st, idx) {
+  if (st.reps !== undefined) {
+    // New format
+    return `<tr>
+      <td>${st.set || idx+1}</td>
+      <td>${st.kg||'—'}</td>
+      <td>${st.reps||'—'}</td>
+      <td>${st.rpe||'—'}</td>
+      <td>${esc(st.note||'')}</td></tr>`;
+  } else {
+    // Old format: r1/r2/r3 within a single row — expand to 3 rows
+    let rows = '';
+    if (st.r1 || st.r2 || st.r3) {
+      [[1,'r1'],[2,'r2'],[3,'r3']].forEach(([n, key]) => {
+        if (st[key]) rows += `<tr>
+          <td>${n}</td>
+          <td>${st.kg||'—'}</td>
+          <td>${st[key]||'—'}</td>
+          <td>${n===1?st.rpe||'—':'—'}</td>
+          <td>${n===1?esc(st.note||''):''}</td></tr>`;
+      });
+    } else {
+      rows = `<tr><td>—</td><td>${st.kg||'—'}</td><td>—</td><td>${st.rpe||'—'}</td><td>${esc(st.note||'')}</td></tr>`;
+    }
+    return rows;
+  }
 }
 
 function renderLog() {
@@ -806,11 +1035,15 @@ function renderLog() {
 
       if (isMob) {
         sess.exercises.forEach(ex => {
+          const isCarry = ex.name === "Farmer's carry";
           h += `<div class="sess-ex">
             <div class="sess-ex-name">${ex.name}</div>
-            <div style="font-size:13px;padding:4px 0;line-height:1.8">`;
+            <div style="font-size:13px;padding:4px 0;line-height:2">`;
           ex.rounds.forEach((done, r) => {
-            h += `<span style="margin-right:14px">${done ? '✅' : '⬜'} Set ${r+1}</span>`;
+            const weightLabel = isCarry && ex.weights && ex.weights[r]
+              ? ` <span style="color:var(--accent);font-weight:600">${ex.weights[r]} kg</span>`
+              : '';
+            h += `<span style="margin-right:14px">${done ? '✅' : '⬜'} Set ${r+1}${weightLabel}</span>`;
           });
           h += `</div></div>`;
         });
@@ -819,14 +1052,10 @@ function renderLog() {
           h += `<div class="sess-ex">
             <div class="sess-ex-name">${ex.name}</div>
             <table class="view-tbl">
-              <thead><tr><th>kg</th><th>Rep 1</th><th>Rep 2</th><th>Rep 3</th><th>RPE</th><th>Note</th></tr></thead>
+              <thead><tr><th>Set</th><th>kg</th><th>Reps</th><th>RPE</th><th>Note</th></tr></thead>
               <tbody>`;
-          ex.sets.forEach(st => {
-            h += `<tr>
-              <td>${st.kg||'—'}</td>
-              <td>${st.r1||'—'}</td><td>${st.r2||'—'}</td><td>${st.r3||'—'}</td>
-              <td>${st.rpe||'—'}</td>
-              <td>${esc(st.note||'')}</td></tr>`;
+          ex.sets.forEach((st, si) => {
+            h += renderSetRow(st, si);
           });
           h += `</tbody></table></div>`;
         });
@@ -897,6 +1126,7 @@ function exportWeek(weekStartStr) {
     td:last-child{text-align:left}
     .no-sessions{color:#666;font-style:italic}
     .mob-item{font-size:13px;margin:4px 0}
+    .carry-weight{color:#007aff;font-weight:600;margin-left:6px}
   </style></head><body>
   <h1>Workout Log</h1>
   <div class="sub">${fmtDate(weekStartStr,{day:'numeric',month:'long',year:'numeric'})} &ndash; ${fmtDate(weStr,{day:'numeric',month:'long',year:'numeric'})}</div>`;
@@ -912,17 +1142,30 @@ function exportWeek(weekStartStr) {
       if (isMob) {
         s.exercises.forEach(ex => {
           doc += `<h3>${ex.name}</h3>`;
+          const isCarry = ex.name === "Farmer's carry";
           ex.rounds.forEach((done, r) => {
-            doc += `<div class="mob-item">${done ? '&#x2705;' : '&#x2B1C;'} Set ${r+1}</div>`;
+            const wLabel = isCarry && ex.weights && ex.weights[r]
+              ? `<span class="carry-weight">${ex.weights[r]} kg</span>` : '';
+            doc += `<div class="mob-item">${done ? '&#x2705;' : '&#x2B1C;'} Set ${r+1} ${wLabel}</div>`;
           });
         });
       } else if (hasReg) {
         s.exercises.forEach(ex => {
+          const isNew = ex.sets[0] && ex.sets[0].reps !== undefined;
           doc += `<h3>${ex.name}</h3>
-            <table><tr><th>kg</th><th>Rep 1</th><th>Rep 2</th><th>Rep 3</th><th>RPE</th><th>Note</th></tr>`;
-          ex.sets.forEach(st => {
-            doc += `<tr><td>${st.kg||'—'}</td><td>${st.r1||'—'}</td><td>${st.r2||'—'}</td><td>${st.r3||'—'}</td><td>${st.rpe||'—'}</td><td>${st.note||''}</td></tr>`;
-          });
+            <table><tr><th>Set</th><th>kg</th><th>Reps</th><th>RPE</th><th>Note</th></tr>`;
+          if (isNew) {
+            ex.sets.forEach(st => {
+              doc += `<tr><td>${st.set||''}</td><td>${st.kg||'—'}</td><td>${st.reps||'—'}</td><td>${st.rpe||'—'}</td><td>${st.note||''}</td></tr>`;
+            });
+          } else {
+            // Old format
+            ex.sets.forEach((st, si) => {
+              [[1,'r1'],[2,'r2'],[3,'r3']].forEach(([n,key]) => {
+                if (st[key]) doc += `<tr><td>${n}</td><td>${st.kg||'—'}</td><td>${st[key]||'—'}</td><td>${n===1?st.rpe||'—':'—'}</td><td>${n===1?st.note||'':''}</td></tr>`;
+              });
+            });
+          }
           doc += `</table>`;
         });
       }
@@ -1112,6 +1355,28 @@ function renderSchedule() {
 // ════════════════════════════════════════════════════
 
 function renderProgression() {
+  // Build farmer's carry history
+  const sessions = getSessions();
+  let carryRows = '';
+  sessions.slice().reverse().forEach(sess => {
+    if (!sess.exercises) return;
+    const carry = sess.exercises.find(e => e.name === "Farmer's carry");
+    if (!carry || !carry.weights) return;
+    const weightDisplay = carry.weights.filter(w => w && parseFloat(w) > 0).join(' / ');
+    if (!weightDisplay) return;
+    const dateFmt = fmtDate(sess.date, { weekday:'short', day:'numeric', month:'short' });
+    carryRows += `<tr><td>${dateFmt}</td><td style="text-align:right;font-weight:600;color:var(--accent)">${weightDisplay} kg</td></tr>`;
+  });
+
+  const carrySection = carryRows ? `
+    <div class="sec-label">Farmer's Carry — Weight History</div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table class="prog-tbl">
+        <thead><tr><th>Date</th><th style="text-align:right">Weight (sets)</th></tr></thead>
+        <tbody>${carryRows}</tbody>
+      </table>
+    </div>` : '';
+
   document.getElementById('progression-inner').innerHTML = `
     <div class="ph">
       <div class="ph-title">Progression</div>
@@ -1141,9 +1406,12 @@ function renderProgression() {
           <tr><td>Romanian deadlift</td><td>+8–12 kg</td></tr>
           <tr><td>Goblet squat</td><td>+8–12 kg</td></tr>
           <tr><td>Bulgarian split squat</td><td>+4–8 kg</td></tr>
+          <tr><td>Farmer's carry</td><td>+10–20 kg</td></tr>
         </tbody>
       </table>
     </div>
+
+    ${carrySection}
 
     <div class="sec-label">DNA Flags — Permanent Training Rules</div>
     <div class="dna-card">
