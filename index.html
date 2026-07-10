@@ -676,7 +676,7 @@ function renderToday() {
 
         let carryInput = '';
         if (isCarry) {
-          carryInput = `<input type="number" inputmode="decimal" step="0.5"
+          carryInput = `<input type="text" inputmode="decimal"
             class="carry-kg-inp" placeholder="${lastCarryKg || 'kg'}" value="${esc(carryKg)}"
             onclick="event.stopPropagation()"
             oninput="upCarryDraft('${today}','${dayType}',${i},${r},this.value.replace(',','.'))">`;
@@ -760,7 +760,7 @@ function renderToday() {
         const sd = draftDay[sk] || {};
         h += `<tr>
           <td>${s}</td>
-          <td><input type="number" inputmode="decimal" step="0.5" placeholder="${kgPlaceholder}" value="${esc(sd.kg||'')}"
+          <td><input type="text" inputmode="decimal" placeholder="${kgPlaceholder}" value="${esc(sd.kg||'')}"
             oninput="upDraft('${today}','${dayType}',${ei},${s},'kg',this.value.replace(',','.'))"></td>
           <td><input type="number" inputmode="numeric" placeholder="${baseRep}" value="${esc(sd.reps||'')}"
             oninput="upDraft('${today}','${dayType}',${ei},${s},'reps',this.value)"></td>
