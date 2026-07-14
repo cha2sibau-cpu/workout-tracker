@@ -1745,21 +1745,27 @@ function handleCoachSend() {
 }
 
 async function sendToCoach(message) {
+  // Elements are re-queried fresh after every `await` below, rather than
+  // captured once here, because renderCoach() can rebuild #coach-inner's
+  // entire subtree (e.g. if the user navigates away and back) while this
+  // request is still in flight — a captured reference would go stale and
+  // silently write to a detached, invisible node instead of throwing.
   const threadEl = document.getElementById('coach-thread');
-  const sendBtn = document.getElementById('coach-send-btn');
-  const errorEl = document.getElementById('coach-error');
-  errorEl.textContent = '';
+  document.getElementById('coach-error').textContent = '';
 
   if (threadEl.querySelector('.coach-empty')) threadEl.innerHTML = '';
   threadEl.insertAdjacentHTML('beforeend', `<div class="coach-msg user">${esc(message)}</div>`);
   threadEl.insertAdjacentHTML('beforeend', `<div class="coach-msg assistant pending" id="coach-pending">Thinking…</div>`);
   threadEl.scrollIntoView({ block: 'end' });
-  if (sendBtn) sendBtn.disabled = true;
+  const initialSendBtn = document.getElementById('coach-send-btn');
+  if (initialSendBtn) initialSendBtn.disabled = true;
 
   const { data: { session } } = await sb.auth.getSession();
   if (!session) {
-    errorEl.textContent = 'Not signed in.';
+    const errorEl = document.getElementById('coach-error');
+    if (errorEl) errorEl.textContent = 'Not signed in.';
     document.getElementById('coach-pending')?.remove();
+    const sendBtn = document.getElementById('coach-send-btn');
     if (sendBtn) sendBtn.disabled = false;
     return;
   }
@@ -1784,13 +1790,17 @@ async function sendToCoach(message) {
     if (!res.ok) throw new Error(body.error || 'Request failed');
 
     const pending = document.getElementById('coach-pending');
-    pending.textContent = body.reply;
-    pending.classList.remove('pending');
-    pending.removeAttribute('id');
+    if (pending) {
+      pending.textContent = body.reply;
+      pending.classList.remove('pending');
+      pending.removeAttribute('id');
+    }
   } catch (err) {
     document.getElementById('coach-pending')?.remove();
-    errorEl.textContent = 'Error: ' + err.message;
+    const errorEl = document.getElementById('coach-error');
+    if (errorEl) errorEl.textContent = 'Error: ' + err.message;
   } finally {
+    const sendBtn = document.getElementById('coach-send-btn');
     if (sendBtn) sendBtn.disabled = false;
   }
 }
