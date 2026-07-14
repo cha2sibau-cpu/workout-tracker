@@ -584,9 +584,11 @@ function getLastWeight(exerciseName) {
 }
 
 // ════════════════════════════════════════════════════
-//  STORAGE HELPERS
+//  STORAGE HELPERS (Supabase-backed, with local cache)
 // ════════════════════════════════════════════════════
 
+// Legacy localStorage accessor — kept only so migrateLocalStorageIfNeeded()
+// can read pre-Supabase data once.
 function ls(key, val) {
   const k = PFX + key;
   if (val === undefined) {
@@ -595,11 +597,48 @@ function ls(key, val) {
   localStorage.setItem(k, JSON.stringify(val));
 }
 
-function getSessions()        { return ls('sessions') || []; }
-function saveSessions(v)      { ls('sessions', v); }
-function getDraft()           { return ls('draft') || {}; }
-function saveDraft(v)         { ls('draft', v); }
-function getStartDate()       { return ls('startDate') || null; }
+const cache = { sessions: [], draft: {}, startDate: null };
+
+async function hydrateCache() {
+  const { data: sessionRows, error: sessErr } = await sb.from('sessions').select('data').order('date');
+  if (sessErr) { alert('Failed to load sessions: ' + sessErr.message); return; }
+  cache.sessions = sessionRows.map(r => r.data);
+
+  const { data: stateRow, error: stateErr } = await sb.from('user_state').select('draft,start_date').maybeSingle();
+  if (stateErr) { alert('Failed to load app state: ' + stateErr.message); return; }
+  cache.draft = stateRow?.draft || {};
+  cache.startDate = stateRow?.start_date || null;
+}
+
+async function migrateLocalStorageIfNeeded() {
+  if (cache.sessions.length > 0) return; // Supabase already has data
+  const localSessions = ls('sessions') || [];
+  const localDraft = ls('draft') || {};
+  const localStart = ls('startDate') || null;
+  if (!localSessions.length && !localStart) return; // nothing local to migrate
+
+  if (localSessions.length) await saveSessions(localSessions);
+  if (Object.keys(localDraft).length) await saveDraft(localDraft);
+  if (localStart) await saveStartDate(localStart);
+}
+
+function getSessions() { return cache.sessions; }
+async function saveSessions(v) {
+  cache.sessions = v;
+  if (!v.length) return;
+  const rows = v.map(s => ({ date: s.date, data: s }));
+  const { error } = await sb.from('sessions').upsert(rows, { onConflict: 'user_id,date' });
+  if (error) console.error('saveSessions failed', error);
+}
+
+function getDraft() { return cache.draft; }
+async function saveDraft(v) {
+  cache.draft = v;
+  const { error } = await sb.from('user_state').upsert({ draft: v }, { onConflict: 'user_id' });
+  if (error) console.error('saveDraft failed', error);
+}
+
+function getStartDate() { return cache.startDate; }
 
 // ════════════════════════════════════════════════════
 //  DATE / CYCLE HELPERS
@@ -1535,20 +1574,26 @@ function renderSettings() {
     <div style="height:6px"></div>
     <button class="btn btn-danger" onclick="clearAll()">Clear All Data</button>
     <div style="height:14px"></div>
-    <div style="text-align:center;font-size:12px;color:var(--text-secondary)">All data stored on this device · No account needed</div>`;
+    <button class="btn" onclick="signOut()">Sign out</button>
+    <div style="height:10px"></div>
+    <div style="text-align:center;font-size:12px;color:var(--text-secondary)">Synced to your account via Supabase</div>`;
 }
 
-function saveStartDate(val) {
-  ls('startDate', val);
+async function saveStartDate(val) {
+  cache.startDate = val;
   renderSettings();
+  const { error } = await sb.from('user_state').upsert({ start_date: val }, { onConflict: 'user_id' });
+  if (error) console.error('saveStartDate failed', error);
 }
 
-function clearAll() {
+async function clearAll() {
   if (!confirm('Delete ALL workout data? This cannot be undone.')) return;
   if (!confirm('Final confirmation — permanently clear everything?')) return;
-  Object.keys(localStorage)
-    .filter(k => k.startsWith(PFX))
-    .forEach(k => localStorage.removeItem(k));
+  await sb.from('sessions').delete().not('id', 'is', null);
+  await sb.from('user_state').delete().not('user_id', 'is', null);
+  cache.sessions = [];
+  cache.draft = {};
+  cache.startDate = null;
   renderSettings();
   alert('All data cleared.');
 }
