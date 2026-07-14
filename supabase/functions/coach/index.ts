@@ -100,7 +100,15 @@ Deno.serve(async (req) => {
   }
 
   const claudeJson = await claudeRes.json();
-  const reply = claudeJson.content?.[0]?.text ?? "";
+  // The text block isn't always content[0] (e.g. a non-text block can
+  // precede it), so find it explicitly rather than assuming position.
+  const textBlock = (claudeJson.content ?? []).find((b: { type?: string; text?: string }) => b.type === "text");
+  const reply = textBlock?.text ?? "";
+
+  if (!reply) {
+    console.error("claude returned no text content: " + JSON.stringify(claudeJson));
+    return jsonResponse({ error: `Claude returned no reply text (stop_reason: ${claudeJson.stop_reason ?? "unknown"})` }, 502);
+  }
 
   const { error: insertReplyErr } = await supabase
     .from("chat_messages")
