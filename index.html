@@ -615,7 +615,7 @@ async function migrateLocalStorageIfNeeded() {
   const localSessions = ls('sessions') || [];
   const localDraft = ls('draft') || {};
   const localStart = ls('startDate') || null;
-  if (!localSessions.length && !localStart) return; // nothing local to migrate
+  if (!localSessions.length && !localStart && !Object.keys(localDraft).length) return; // nothing local to migrate
 
   if (localSessions.length) await saveSessions(localSessions);
   if (Object.keys(localDraft).length) await saveDraft(localDraft);
@@ -628,14 +628,14 @@ async function saveSessions(v) {
   if (!v.length) return;
   const rows = v.map(s => ({ date: s.date, data: s }));
   const { error } = await sb.from('sessions').upsert(rows, { onConflict: 'user_id,date' });
-  if (error) console.error('saveSessions failed', error);
+  if (error) { console.error('saveSessions failed', error); alert('Failed to save sessions: ' + error.message); }
 }
 
 function getDraft() { return cache.draft; }
 async function saveDraft(v) {
   cache.draft = v;
   const { error } = await sb.from('user_state').upsert({ draft: v }, { onConflict: 'user_id' });
-  if (error) console.error('saveDraft failed', error);
+  if (error) { console.error('saveDraft failed', error); alert('Failed to save draft: ' + error.message); }
 }
 
 function getStartDate() { return cache.startDate; }
@@ -1583,7 +1583,7 @@ async function saveStartDate(val) {
   cache.startDate = val;
   renderSettings();
   const { error } = await sb.from('user_state').upsert({ start_date: val }, { onConflict: 'user_id' });
-  if (error) console.error('saveStartDate failed', error);
+  if (error) { console.error('saveStartDate failed', error); alert('Failed to save start date: ' + error.message); }
 }
 
 async function clearAll() {
