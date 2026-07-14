@@ -627,26 +627,34 @@ async function migrateLocalStorageIfNeeded() {
   const localSessions = ls('sessions') || [];
   const localDraft = ls('draft') || {};
   const localStart = ls('startDate') || null;
-  if (localSessions.length) await saveSessions(localSessions);
-  if (Object.keys(localDraft).length) await saveDraft(localDraft);
-  if (localStart) await saveStartDate(localStart);
-  ls('migrated', true);
+
+  // Only mark migration done if every attempted write actually reached
+  // Supabase — a failed write must not be permanently skipped on the
+  // next sign-in, since this is a one-time, irreplaceable-data operation.
+  let ok = true;
+  if (localSessions.length) ok = (await saveSessions(localSessions)) && ok;
+  if (Object.keys(localDraft).length) ok = (await saveDraft(localDraft)) && ok;
+  if (localStart) ok = (await saveStartDate(localStart)) && ok;
+
+  if (ok) ls('migrated', true);
 }
 
 function getSessions() { return cache.sessions; }
 async function saveSessions(v) {
   cache.sessions = v;
-  if (!v.length) return;
+  if (!v.length) return true;
   const rows = v.map(s => ({ date: s.date, data: s }));
   const { error } = await sb.from('sessions').upsert(rows, { onConflict: 'user_id,date' });
-  if (error) { console.error('saveSessions failed', error); alert('Failed to save sessions: ' + error.message); }
+  if (error) { console.error('saveSessions failed', error); alert('Failed to save sessions: ' + error.message); return false; }
+  return true;
 }
 
 function getDraft() { return cache.draft; }
 async function saveDraft(v) {
   cache.draft = v;
   const { error } = await sb.from('user_state').upsert({ draft: v }, { onConflict: 'user_id' });
-  if (error) { console.error('saveDraft failed', error); alert('Failed to save draft: ' + error.message); }
+  if (error) { console.error('saveDraft failed', error); alert('Failed to save draft: ' + error.message); return false; }
+  return true;
 }
 
 function getStartDate() { return cache.startDate; }
@@ -1634,7 +1642,8 @@ async function saveStartDate(val) {
   cache.startDate = val;
   renderSettings();
   const { error } = await sb.from('user_state').upsert({ start_date: val }, { onConflict: 'user_id' });
-  if (error) { console.error('saveStartDate failed', error); alert('Failed to save start date: ' + error.message); }
+  if (error) { console.error('saveStartDate failed', error); alert('Failed to save start date: ' + error.message); return false; }
+  return true;
 }
 
 async function clearAll() {
