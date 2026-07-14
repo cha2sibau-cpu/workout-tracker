@@ -416,8 +416,8 @@ async function initAuth() {
 
 async function onAuthed(session) {
   document.body.classList.add('authed');
-  await hydrateCache();
-  await migrateLocalStorageIfNeeded();
+  const hydrated = await hydrateCache();
+  if (hydrated) await migrateLocalStorageIfNeeded();
   renderTab('today');
 }
 
@@ -608,25 +608,29 @@ const cache = { sessions: [], draft: {}, startDate: null };
 
 async function hydrateCache() {
   const { data: sessionRows, error: sessErr } = await sb.from('sessions').select('data').order('date');
-  if (sessErr) { alert('Failed to load sessions: ' + sessErr.message); return; }
+  if (sessErr) { alert('Failed to load sessions: ' + sessErr.message); return false; }
   cache.sessions = sessionRows.map(r => r.data);
 
   const { data: stateRow, error: stateErr } = await sb.from('user_state').select('draft,start_date').maybeSingle();
-  if (stateErr) { alert('Failed to load app state: ' + stateErr.message); return; }
+  if (stateErr) { alert('Failed to load app state: ' + stateErr.message); return false; }
   cache.draft = stateRow?.draft || {};
   cache.startDate = stateRow?.start_date || null;
+  return true;
 }
 
+// Migration is gated on a persistent marker, not on whether Supabase
+// currently looks empty — cache.sessions.length reaching 0 is also the
+// legitimate post-clearAll() state, and re-inferring "never migrated"
+// from that would silently resurrect data the user deleted on purpose.
 async function migrateLocalStorageIfNeeded() {
-  if (cache.sessions.length > 0) return; // Supabase already has data
+  if (ls('migrated')) return;
   const localSessions = ls('sessions') || [];
   const localDraft = ls('draft') || {};
   const localStart = ls('startDate') || null;
-  if (!localSessions.length && !localStart && !Object.keys(localDraft).length) return; // nothing local to migrate
-
   if (localSessions.length) await saveSessions(localSessions);
   if (Object.keys(localDraft).length) await saveDraft(localDraft);
   if (localStart) await saveStartDate(localStart);
+  ls('migrated', true);
 }
 
 function getSessions() { return cache.sessions; }
@@ -1647,9 +1651,9 @@ async function clearAll() {
 
 function exportBackup() {
   const backup = {
-    sessions: ls('sessions') || [],
-    draft: ls('draft') || {},
-    startDate: ls('startDate') || null,
+    sessions: getSessions(),
+    draft: getDraft(),
+    startDate: getStartDate(),
     exportedAt: new Date().toISOString()
   };
 
