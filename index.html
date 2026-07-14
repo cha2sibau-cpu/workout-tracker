@@ -239,6 +239,18 @@ body:not(.authed) .tab-bar,body:not(.authed) .tab-pane{display:none}
 .claude-rec.error{color:#c0392b}
 .claude-action{font-weight:600}
 .claude-rationale{color:var(--text-secondary,#888)}
+
+.coach-thread{display:flex;flex-direction:column;gap:10px;padding-bottom:12px}
+.coach-msg{max-width:85%;padding:10px 13px;border-radius:14px;font-size:14px;line-height:1.5;white-space:pre-wrap}
+.coach-msg.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.coach-msg.assistant{align-self:flex-start;background:var(--card);border:1px solid var(--border);border-bottom-left-radius:4px}
+.coach-msg.pending{opacity:.6}
+.coach-empty{color:var(--text-secondary);font-size:14px;text-align:center;padding:24px 12px}
+.coach-input-row{position:sticky;bottom:0;display:flex;gap:8px;padding:10px 0;background:var(--bg)}
+.coach-input{flex:1;min-height:44px;border:1.5px solid var(--border);border-radius:12px;padding:10px 14px;font-size:15px;background:var(--card);color:var(--text);font-family:inherit;resize:none}
+.coach-send-btn{min-width:64px;border:none;border-radius:12px;background:var(--accent);color:#fff;font-size:14px;font-weight:600;cursor:pointer}
+.coach-send-btn:disabled{opacity:.5;cursor:default}
+.coach-error{color:#c0392b;font-size:13px;text-align:center;padding:6px 0}
 </style>
 </head>
 <body>
@@ -271,6 +283,10 @@ body:not(.authed) .tab-bar,body:not(.authed) .tab-pane{display:none}
   <div id="progression-inner"></div>
 </div>
 
+<div id="tab-coach" class="tab-pane">
+  <div id="coach-inner"></div>
+</div>
+
 <div id="tab-settings" class="tab-pane">
   <div id="settings-inner"></div>
 </div>
@@ -292,6 +308,10 @@ body:not(.authed) .tab-bar,body:not(.authed) .tab-pane{display:none}
   <button class="tab-btn" id="tbtn-progression" onclick="goTab('progression')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
     Progression
+  </button>
+  <button class="tab-btn" id="tbtn-coach" onclick="goTab('coach')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+    Coach
   </button>
   <button class="tab-btn" id="tbtn-settings" onclick="goTab('settings')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -708,7 +728,7 @@ function typeBadgeClass(t) {
 //  TAB SWITCHING
 // ════════════════════════════════════════════════════
 
-const TABS = ['today','log','schedule','progression','settings'];
+const TABS = ['today','log','schedule','progression','coach','settings'];
 
 function goTab(tab) {
   TABS.forEach(t => {
@@ -721,7 +741,7 @@ function goTab(tab) {
 
 function renderTab(tab) {
   ({ today:renderToday, log:renderLog, schedule:renderSchedule,
-     progression:renderProgression, settings:renderSettings })[tab]();
+     progression:renderProgression, coach:renderCoach, settings:renderSettings })[tab]();
 }
 
 // ════════════════════════════════════════════════════
@@ -1681,6 +1701,98 @@ function exportBackup() {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+}
+
+// ════════════════════════════════════════════════════
+//  COACH TAB
+// ════════════════════════════════════════════════════
+
+async function renderCoach() {
+  const el = document.getElementById('coach-inner');
+  el.innerHTML = `
+    <div class="ph"><div class="ph-title">Coach</div><div class="ph-sub">Your personal trainer, aware of your whole program</div></div>
+    <div class="coach-thread" id="coach-thread"></div>
+    <div class="coach-input-row">
+      <textarea class="coach-input" id="coach-input" rows="1" placeholder="Ask your coach anything…"></textarea>
+      <button class="coach-send-btn" id="coach-send-btn" onclick="handleCoachSend()">Send</button>
+    </div>
+    <div class="coach-error" id="coach-error"></div>`;
+
+  const { data: rows, error } = await sb
+    .from('chat_messages')
+    .select('role, content, created_at')
+    .order('created_at');
+
+  const threadEl = document.getElementById('coach-thread');
+  if (error) {
+    document.getElementById('coach-error').textContent = 'Failed to load conversation: ' + error.message;
+    return;
+  }
+  if (!rows.length) {
+    threadEl.innerHTML = '<div class="coach-empty">No conversation yet — ask your coach something, or tap "Ask Claude" on any exercise.</div>';
+    return;
+  }
+  threadEl.innerHTML = rows.map(m => `<div class="coach-msg ${m.role}">${esc(m.content)}</div>`).join('');
+  threadEl.scrollIntoView({ block: 'end' });
+}
+
+function handleCoachSend() {
+  const input = document.getElementById('coach-input');
+  const message = input.value.trim();
+  if (!message) return;
+  input.value = '';
+  sendToCoach(message);
+}
+
+async function sendToCoach(message) {
+  const threadEl = document.getElementById('coach-thread');
+  const sendBtn = document.getElementById('coach-send-btn');
+  const errorEl = document.getElementById('coach-error');
+  errorEl.textContent = '';
+
+  if (threadEl.querySelector('.coach-empty')) threadEl.innerHTML = '';
+  threadEl.insertAdjacentHTML('beforeend', `<div class="coach-msg user">${esc(message)}</div>`);
+  threadEl.insertAdjacentHTML('beforeend', `<div class="coach-msg assistant pending" id="coach-pending">Thinking…</div>`);
+  threadEl.scrollIntoView({ block: 'end' });
+  if (sendBtn) sendBtn.disabled = true;
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) {
+    errorEl.textContent = 'Not signed in.';
+    document.getElementById('coach-pending')?.remove();
+    if (sendBtn) sendBtn.disabled = false;
+    return;
+  }
+
+  const today = localDateStr();
+  const info = getStartDate() ? getCycleInfo(today) : null;
+  const phase = info ? info.phase : 1;
+  const weekNum = info ? info.weekNum : 1;
+  const dayType = info ? info.dayType : '';
+  const isDeload = phase === 4 && weekNum <= 22;
+
+  try {
+    const res = await fetch(SUPABASE_URL + '/functions/v1/coach', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token
+      },
+      body: JSON.stringify({ message, phase, weekNum, dayType, isDeload })
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Request failed');
+
+    const pending = document.getElementById('coach-pending');
+    pending.textContent = body.reply;
+    pending.classList.remove('pending');
+    pending.removeAttribute('id');
+  } catch (err) {
+    document.getElementById('coach-pending')?.remove();
+    errorEl.textContent = 'Error: ' + err.message;
+  } finally {
+    if (sendBtn) sendBtn.disabled = false;
+  }
 }
 
 // ════════════════════════════════════════════════════
