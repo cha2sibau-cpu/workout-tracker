@@ -224,9 +224,27 @@ input[type=date].date-input:focus{outline:none;border-color:var(--accent)}
   body{padding:0;background:#fff}
   .card,.session-card,.phase-card{box-shadow:none;border:1px solid #ccc}
 }
+
+#login-gate{position:fixed;inset:0;background:var(--bg,#f5f5f5);display:flex;align-items:center;justify-content:center;z-index:1000}
+.login-card{max-width:320px;width:90%;background:#fff;border-radius:12px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,.1);text-align:center}
+.login-card input{width:100%;padding:10px;margin:12px 0;border:1px solid #ccc;border-radius:8px;font-size:14px;box-sizing:border-box}
+.login-card button{width:100%;padding:10px;border:none;border-radius:8px;background:var(--accent,#2563eb);color:#fff;font-size:14px;cursor:pointer}
+#login-status{margin-top:10px;font-size:12px;color:var(--text-secondary,#888)}
+body.authed #login-gate{display:none}
+body:not(.authed) .tab-bar,body:not(.authed) .tab-pane{display:none}
 </style>
 </head>
 <body>
+
+<div id="login-gate">
+  <div class="login-card">
+    <h2>Sign in</h2>
+    <p>Enter your email to get a magic link.</p>
+    <input type="email" id="login-email" placeholder="you@example.com">
+    <button onclick="sendMagicLink()">Send magic link</button>
+    <div id="login-status"></div>
+  </div>
+</div>
 
 <!-- ═══════════════════ TAB PANES ═══════════════════ -->
 
@@ -273,6 +291,8 @@ input[type=date].date-input:focus{outline:none;border-color:var(--accent)}
     Settings
   </button>
 </nav>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
 <script>
 // ════════════════════════════════════════════════════
@@ -352,6 +372,47 @@ const WORKOUTS = {
   },
   Rest: { rest: true }
 };
+
+// ════════════════════════════════════════════════════
+//  SUPABASE CLIENT & AUTH
+// ════════════════════════════════════════════════════
+
+const SUPABASE_URL = 'https://zhucmpzgkujvwlwyjchr.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_WJC-U12gsAvM8rgDiGt3uw_AFnKeBqI';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+async function sendMagicLink() {
+  const email = document.getElementById('login-email').value.trim();
+  const statusEl = document.getElementById('login-status');
+  if (!email) { statusEl.textContent = 'Enter an email.'; return; }
+  statusEl.textContent = 'Sending...';
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.href }
+  });
+  statusEl.textContent = error ? `Error: ${error.message}` : 'Check your email for the magic link.';
+}
+
+async function signOut() {
+  await sb.auth.signOut();
+  document.body.classList.remove('authed');
+  location.reload();
+}
+
+async function initAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) { await onAuthed(session); return; }
+  sb.auth.onAuthStateChange(async (_event, newSession) => {
+    if (newSession && !document.body.classList.contains('authed')) await onAuthed(newSession);
+  });
+}
+
+async function onAuthed(session) {
+  document.body.classList.add('authed');
+  await hydrateCache();
+  await migrateLocalStorageIfNeeded();
+  renderTab('today');
+}
 
 // ════════════════════════════════════════════════════
 //  LOG VIEW STATE
@@ -1496,7 +1557,7 @@ function clearAll() {
 //  INIT
 // ════════════════════════════════════════════════════
 
-renderTab('today');
+initAuth();
 </script>
 </body>
 </html>
