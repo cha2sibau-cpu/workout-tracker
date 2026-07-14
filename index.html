@@ -224,9 +224,34 @@ input[type=date].date-input:focus{outline:none;border-color:var(--accent)}
   body{padding:0;background:#fff}
   .card,.session-card,.phase-card{box-shadow:none;border:1px solid #ccc}
 }
+
+#login-gate{position:fixed;inset:0;background:var(--bg,#f5f5f5);display:flex;align-items:center;justify-content:center;z-index:1000}
+.login-card{max-width:320px;width:90%;background:#fff;border-radius:12px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,.1);text-align:center}
+.login-card input{width:100%;padding:10px;margin:12px 0;border:1px solid #ccc;border-radius:8px;font-size:14px;box-sizing:border-box}
+.login-card button{width:100%;padding:10px;border:none;border-radius:8px;background:var(--accent,#2563eb);color:#fff;font-size:14px;cursor:pointer}
+#login-status{margin-top:10px;font-size:12px;color:var(--text-secondary,#888)}
+body.authed #login-gate{display:none}
+body:not(.authed) .tab-bar,body:not(.authed) .tab-pane{display:none}
+
+.btn-ask-claude{margin-top:6px;padding:5px 10px;font-size:12px;border:1px solid var(--accent,#2563eb);color:var(--accent,#2563eb);background:none;border-radius:6px;cursor:pointer}
+.claude-rec{margin-top:6px;font-size:12px;line-height:1.5}
+.claude-rec.loading{color:var(--text-secondary,#888)}
+.claude-rec.error{color:#c0392b}
+.claude-action{font-weight:600}
+.claude-rationale{color:var(--text-secondary,#888)}
 </style>
 </head>
 <body>
+
+<div id="login-gate">
+  <div class="login-card">
+    <h2>Sign in</h2>
+    <p>Enter your email to get a magic link.</p>
+    <input type="email" id="login-email" placeholder="you@example.com">
+    <button onclick="sendMagicLink()">Send magic link</button>
+    <div id="login-status"></div>
+  </div>
+</div>
 
 <!-- ═══════════════════ TAB PANES ═══════════════════ -->
 
@@ -273,6 +298,8 @@ input[type=date].date-input:focus{outline:none;border-color:var(--accent)}
     Settings
   </button>
 </nav>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
 <script>
 // ════════════════════════════════════════════════════
@@ -353,6 +380,47 @@ const WORKOUTS = {
   },
   Rest: { rest: true }
 };
+
+// ════════════════════════════════════════════════════
+//  SUPABASE CLIENT & AUTH
+// ════════════════════════════════════════════════════
+
+const SUPABASE_URL = 'https://zhucmpzgkujvwlwyjchr.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_WJC-U12gsAvM8rgDiGt3uw_AFnKeBqI';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+async function sendMagicLink() {
+  const email = document.getElementById('login-email').value.trim();
+  const statusEl = document.getElementById('login-status');
+  if (!email) { statusEl.textContent = 'Enter an email.'; return; }
+  statusEl.textContent = 'Sending...';
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.href }
+  });
+  statusEl.textContent = error ? `Error: ${error.message}` : 'Check your email for the magic link.';
+}
+
+async function signOut() {
+  await sb.auth.signOut();
+  document.body.classList.remove('authed');
+  location.reload();
+}
+
+async function initAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) { await onAuthed(session); return; }
+  sb.auth.onAuthStateChange(async (_event, newSession) => {
+    if (newSession && !document.body.classList.contains('authed')) await onAuthed(newSession);
+  });
+}
+
+async function onAuthed(session) {
+  document.body.classList.add('authed');
+  const hydrated = await hydrateCache();
+  if (hydrated) await migrateLocalStorageIfNeeded();
+  renderTab('today');
+}
 
 // ════════════════════════════════════════════════════
 //  LOG VIEW STATE
@@ -524,9 +592,11 @@ function getLastWeight(exerciseName) {
 }
 
 // ════════════════════════════════════════════════════
-//  STORAGE HELPERS
+//  STORAGE HELPERS (Supabase-backed, with local cache)
 // ════════════════════════════════════════════════════
 
+// Legacy localStorage accessor — kept only so migrateLocalStorageIfNeeded()
+// can read pre-Supabase data once.
 function ls(key, val) {
   const k = PFX + key;
   if (val === undefined) {
@@ -535,11 +605,60 @@ function ls(key, val) {
   localStorage.setItem(k, JSON.stringify(val));
 }
 
-function getSessions()        { return ls('sessions') || []; }
-function saveSessions(v)      { ls('sessions', v); }
-function getDraft()           { return ls('draft') || {}; }
-function saveDraft(v)         { ls('draft', v); }
-function getStartDate()       { return ls('startDate') || null; }
+const cache = { sessions: [], draft: {}, startDate: null };
+
+async function hydrateCache() {
+  const { data: sessionRows, error: sessErr } = await sb.from('sessions').select('data').order('date');
+  if (sessErr) { alert('Failed to load sessions: ' + sessErr.message); return false; }
+  cache.sessions = sessionRows.map(r => r.data);
+
+  const { data: stateRow, error: stateErr } = await sb.from('user_state').select('draft,start_date').maybeSingle();
+  if (stateErr) { alert('Failed to load app state: ' + stateErr.message); return false; }
+  cache.draft = stateRow?.draft || {};
+  cache.startDate = stateRow?.start_date || null;
+  return true;
+}
+
+// Migration is gated on a persistent marker, not on whether Supabase
+// currently looks empty — cache.sessions.length reaching 0 is also the
+// legitimate post-clearAll() state, and re-inferring "never migrated"
+// from that would silently resurrect data the user deleted on purpose.
+async function migrateLocalStorageIfNeeded() {
+  if (ls('migrated')) return;
+  const localSessions = ls('sessions') || [];
+  const localDraft = ls('draft') || {};
+  const localStart = ls('startDate') || null;
+
+  // Only mark migration done if every attempted write actually reached
+  // Supabase — a failed write must not be permanently skipped on the
+  // next sign-in, since this is a one-time, irreplaceable-data operation.
+  let ok = true;
+  if (localSessions.length) ok = (await saveSessions(localSessions)) && ok;
+  if (Object.keys(localDraft).length) ok = (await saveDraft(localDraft)) && ok;
+  if (localStart) ok = (await saveStartDate(localStart)) && ok;
+
+  if (ok) ls('migrated', true);
+}
+
+function getSessions() { return cache.sessions; }
+async function saveSessions(v) {
+  cache.sessions = v;
+  if (!v.length) return true;
+  const rows = v.map(s => ({ date: s.date, data: s }));
+  const { error } = await sb.from('sessions').upsert(rows, { onConflict: 'user_id,date' });
+  if (error) { console.error('saveSessions failed', error); alert('Failed to save sessions: ' + error.message); return false; }
+  return true;
+}
+
+function getDraft() { return cache.draft; }
+async function saveDraft(v) {
+  cache.draft = v;
+  const { error } = await sb.from('user_state').upsert({ draft: v }, { onConflict: 'user_id' });
+  if (error) { console.error('saveDraft failed', error); alert('Failed to save draft: ' + error.message); return false; }
+  return true;
+}
+
+function getStartDate() { return cache.startDate; }
 
 // ════════════════════════════════════════════════════
 //  DATE / CYCLE HELPERS
@@ -748,6 +867,8 @@ function renderToday() {
           <div class="ex-target">Target: ${ex.reps} reps</div>
           ${ex.warning ? `<div class="warn-label">⚠ ${ex.warning}</div>` : ''}
           ${recHtml}${noteHtml}
+          <button class="btn-ask-claude" onclick="askClaude('${ex.name.replace(/'/g, "\\'")}', ${ei})">🤖 Ask Claude</button>
+          <div class="claude-rec" id="claude-rec-${ei}"></div>
         </div>
         <div class="tbl-wrap"><table class="log-tbl">
           <colgroup><col class="c-set"><col class="c-kg"><col class="c-reps"><col class="c-rpe"><col class="c-note"></colgroup>
@@ -784,6 +905,42 @@ function renderToday() {
   h += buildComingUp(today);
 
   el.innerHTML = h;
+}
+
+async function askClaude(exerciseName, ei) {
+  const el = document.getElementById('claude-rec-' + ei);
+  el.className = 'claude-rec loading';
+  el.textContent = 'Asking Claude…';
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { el.className = 'claude-rec error'; el.textContent = 'Not signed in.'; return; }
+
+  try {
+    const res = await fetch(SUPABASE_URL + '/functions/v1/ask-claude', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token
+      },
+      body: JSON.stringify({ exerciseName })
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Request failed');
+
+    const actionLabel = {
+      increase_weight: '↑ Increase weight',
+      hold: '→ Hold',
+      decrease_weight: '↓ Decrease weight',
+      increase_reps: '↑ Increase reps',
+      swap_exercise: '⇄ Swap exercise'
+    }[body.action] || body.action;
+
+    el.className = 'claude-rec';
+    el.innerHTML = `<div class="claude-action">${actionLabel}: ${esc(body.detail)}</div><div class="claude-rationale">${esc(body.rationale)}</div>`;
+  } catch (err) {
+    el.className = 'claude-rec error';
+    el.textContent = 'Error: ' + err.message;
+  }
 }
 
 function buildComingUp(fromDateStr) {
@@ -1473,31 +1630,64 @@ function renderSettings() {
     </div>
 
     <div style="height:6px"></div>
+    <button class="btn" onclick="exportBackup()">Export Backup (JSON)</button>
+    <div style="height:14px"></div>
     <button class="btn btn-danger" onclick="clearAll()">Clear All Data</button>
     <div style="height:14px"></div>
-    <div style="text-align:center;font-size:12px;color:var(--text-secondary)">All data stored on this device · No account needed</div>`;
+    <button class="btn" onclick="signOut()">Sign out</button>
+    <div style="height:10px"></div>
+    <div style="text-align:center;font-size:12px;color:var(--text-secondary)">Synced to your account via Supabase</div>`;
 }
 
-function saveStartDate(val) {
-  ls('startDate', val);
+async function saveStartDate(val) {
+  cache.startDate = val;
   renderSettings();
+  const { error } = await sb.from('user_state').upsert({ start_date: val }, { onConflict: 'user_id' });
+  if (error) { console.error('saveStartDate failed', error); alert('Failed to save start date: ' + error.message); return false; }
+  return true;
 }
 
-function clearAll() {
+async function clearAll() {
   if (!confirm('Delete ALL workout data? This cannot be undone.')) return;
   if (!confirm('Final confirmation — permanently clear everything?')) return;
-  Object.keys(localStorage)
-    .filter(k => k.startsWith(PFX))
-    .forEach(k => localStorage.removeItem(k));
+  await sb.from('sessions').delete().not('id', 'is', null);
+  await sb.from('user_state').delete().not('user_id', 'is', null);
+  cache.sessions = [];
+  cache.draft = {};
+  cache.startDate = null;
   renderSettings();
   alert('All data cleared.');
+}
+
+function exportBackup() {
+  const backup = {
+    sessions: getSessions(),
+    draft: getDraft(),
+    startDate: getStartDate(),
+    exportedAt: new Date().toISOString()
+  };
+
+  const jsonStr = JSON.stringify(backup, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+
+  const dateStr = localDateStr();
+  const filename = `workout-tracker-backup-${dateStr}.json`;
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 // ════════════════════════════════════════════════════
 //  INIT
 // ════════════════════════════════════════════════════
 
-renderTab('today');
+initAuth();
 </script>
 </body>
 </html>
