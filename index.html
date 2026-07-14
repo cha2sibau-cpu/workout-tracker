@@ -232,6 +232,13 @@ input[type=date].date-input:focus{outline:none;border-color:var(--accent)}
 #login-status{margin-top:10px;font-size:12px;color:var(--text-secondary,#888)}
 body.authed #login-gate{display:none}
 body:not(.authed) .tab-bar,body:not(.authed) .tab-pane{display:none}
+
+.btn-ask-claude{margin-top:6px;padding:5px 10px;font-size:12px;border:1px solid var(--accent,#2563eb);color:var(--accent,#2563eb);background:none;border-radius:6px;cursor:pointer}
+.claude-rec{margin-top:6px;font-size:12px;line-height:1.5}
+.claude-rec.loading{color:var(--text-secondary,#888)}
+.claude-rec.error{color:#c0392b}
+.claude-action{font-weight:600}
+.claude-rationale{color:var(--text-secondary,#888)}
 </style>
 </head>
 <body>
@@ -847,6 +854,8 @@ function renderToday() {
           <div class="ex-target">Target: ${ex.reps} reps</div>
           ${ex.warning ? `<div class="warn-label">⚠ ${ex.warning}</div>` : ''}
           ${recHtml}${noteHtml}
+          <button class="btn-ask-claude" onclick="askClaude('${ex.name.replace(/'/g, "\\'")}', ${ei})">🤖 Ask Claude</button>
+          <div class="claude-rec" id="claude-rec-${ei}"></div>
         </div>
         <div class="tbl-wrap"><table class="log-tbl">
           <colgroup><col class="c-set"><col class="c-kg"><col class="c-reps"><col class="c-rpe"><col class="c-note"></colgroup>
@@ -883,6 +892,42 @@ function renderToday() {
   h += buildComingUp(today);
 
   el.innerHTML = h;
+}
+
+async function askClaude(exerciseName, ei) {
+  const el = document.getElementById('claude-rec-' + ei);
+  el.className = 'claude-rec loading';
+  el.textContent = 'Asking Claude…';
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { el.className = 'claude-rec error'; el.textContent = 'Not signed in.'; return; }
+
+  try {
+    const res = await fetch(SUPABASE_URL + '/functions/v1/ask-claude', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token
+      },
+      body: JSON.stringify({ exerciseName })
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Request failed');
+
+    const actionLabel = {
+      increase_weight: '↑ Increase weight',
+      hold: '→ Hold',
+      decrease_weight: '↓ Decrease weight',
+      increase_reps: '↑ Increase reps',
+      swap_exercise: '⇄ Swap exercise'
+    }[body.action] || body.action;
+
+    el.className = 'claude-rec';
+    el.innerHTML = `<div class="claude-action">${actionLabel}: ${esc(body.detail)}</div><div class="claude-rationale">${esc(body.rationale)}</div>`;
+  } catch (err) {
+    el.className = 'claude-rec error';
+    el.textContent = 'Error: ' + err.message;
+  }
 }
 
 function buildComingUp(fromDateStr) {
