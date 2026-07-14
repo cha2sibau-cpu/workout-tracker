@@ -7,14 +7,37 @@ const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
+// This function is called cross-origin from the app's static frontend
+// (a different origin than *.supabase.co), and the request carries a
+// custom Authorization header, so the browser sends a CORS preflight
+// (OPTIONS) before the real request. Without these headers on every
+// response (including the preflight), the browser blocks the request
+// before the frontend ever sees a reply, surfacing as "Failed to fetch".
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json", ...CORS_HEADERS },
+  });
+}
+
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: CORS_HEADERS });
+  }
+
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405 });
+    return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
-    return new Response(JSON.stringify({ error: "Missing Authorization header" }), { status: 401 });
+    return jsonResponse({ error: "Missing Authorization header" }, 401);
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -23,7 +46,7 @@ Deno.serve(async (req) => {
 
   const { data: userData, error: userErr } = await supabase.auth.getUser();
   if (userErr || !userData.user) {
-    return new Response(JSON.stringify({ error: "Invalid session" }), { status: 401 });
+    return jsonResponse({ error: "Invalid session" }, 401);
   }
 
   let exerciseName: string;
@@ -31,10 +54,10 @@ Deno.serve(async (req) => {
     const body = await req.json();
     exerciseName = body.exerciseName;
   } catch {
-    return new Response(JSON.stringify({ error: "Invalid JSON body" }), { status: 400 });
+    return jsonResponse({ error: "Invalid JSON body" }, 400);
   }
   if (!exerciseName || typeof exerciseName !== "string") {
-    return new Response(JSON.stringify({ error: "exerciseName is required" }), { status: 400 });
+    return jsonResponse({ error: "exerciseName is required" }, 400);
   }
 
   const { data: rows, error: dbErr } = await supabase
@@ -43,7 +66,7 @@ Deno.serve(async (req) => {
     .order("date", { ascending: false })
     .limit(10);
   if (dbErr) {
-    return new Response(JSON.stringify({ error: dbErr.message }), { status: 500 });
+    return jsonResponse({ error: dbErr.message }, 500);
   }
 
   const history = extractExerciseHistory(rows.map((r) => r.data), exerciseName);
@@ -65,7 +88,7 @@ Deno.serve(async (req) => {
 
   if (!claudeRes.ok) {
     const errText = await claudeRes.text();
-    return new Response(JSON.stringify({ error: `Claude API error: ${errText}` }), { status: 502 });
+    return jsonResponse({ error: `Claude API error: ${errText}` }, 502);
   }
 
   const claudeJson = await claudeRes.json();
@@ -75,10 +98,8 @@ Deno.serve(async (req) => {
   try {
     recommendation = parseClaudeReply(text);
   } catch (e) {
-    return new Response(JSON.stringify({ error: String(e) }), { status: 502 });
+    return jsonResponse({ error: String(e) }, 502);
   }
 
-  return new Response(JSON.stringify(recommendation), {
-    headers: { "content-type": "application/json" },
-  });
+  return jsonResponse(recommendation);
 });
