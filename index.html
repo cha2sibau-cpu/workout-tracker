@@ -8,19 +8,45 @@
 <title>Workout Tracker</title>
 <style>
 :root {
-  --bg: #f2f2f7;
+  /* ── Surfaces ── */
+  --bg: #fafafa;
   --card: #ffffff;
-  --border: #d1d1d6;
-  --text: #1c1c1e;
-  --text-secondary: #6e6e73;
-  --accent: #007aff;
-  --accent-light: #e8f0fe;
-  --red: #ff3b30;
-  --red-bg: #fff2f1;
-  --amber: #ff9500;
-  --amber-bg: #fff8ec;
-  --green: #34c759;
-  --green-bg: #f0fff4;
+  --surface-alt: #f4f4f5;
+  --surface-invert: #0a0a0a;
+
+  /* ── Ink ── */
+  --text: #0a0a0a;
+  /* 4.81:1 on --surface-alt, the worst-case surface it lands on. */
+  --text-secondary: #6b6b73;
+  --text-invert: #ffffff;
+
+  /* ── Lines ── */
+  --border: #e4e4e7;
+  --border-strong: #0a0a0a;
+
+  /* ── Accent: volt. FILL ONLY — 1.3:1 on white, so never use as
+     `color:` or `border-color:`. Always pair with --accent-ink. ── */
+  --accent: #d7ff3e;
+  --accent-ink: #0a0a0a;
+
+  /* ── Danger: injury cautions and back-off signals ONLY.
+     Kept rare so it stays pre-attentive. ── */
+  --danger: #d01b20;
+  --danger-bg: #fef2f2;
+
+  /* ── Geometry ── */
+  --r-xs: 2px;
+  --r-sm: 4px;
+  --r-md: 6px;
+
+  /* ── Motion ── */
+  --dur: 100ms;
+  --ease: cubic-bezier(.2,0,0,1);
+
+  /* ── Space ── */
+  --s1: 4px;  --s2: 8px;  --s3: 12px;
+  --s4: 16px; --s5: 24px; --s6: 32px;
+
   --tab-h: 83px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -29,9 +55,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;backg
 
 /* ── Tab bar ── */
 .tab-bar{position:fixed;bottom:0;left:0;right:0;height:calc(var(--tab-h) + var(--safe-bottom));background:rgba(255,255,255,.94);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--border);display:flex;align-items:flex-start;padding-top:6px;padding-bottom:var(--safe-bottom);z-index:999}
-.tab-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;padding:6px 4px;cursor:pointer;color:var(--text-secondary);font-size:10px;font-weight:500;min-height:44px;transition:color .15s}
-.tab-btn.active{color:var(--accent)}
+.tab-btn{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;padding:6px 4px;cursor:pointer;color:var(--text-secondary);font-size:10px;font-weight:600;letter-spacing:.2px;min-height:44px;transition:color var(--dur) var(--ease)}
+/* Volt can't tint the label (invisible on white) — it becomes a fill bar instead. */
+.tab-btn.active{color:var(--text)}
+.tab-btn.active::before{content:"";position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:28px;height:3px;background:var(--accent)}
 .tab-btn svg{width:24px;height:24px;stroke-width:1.8}
+.tab-btn.active svg{stroke-width:2.2}
 
 /* ── Layout ── */
 .tab-pane{display:none;padding:0 16px 24px;max-width:820px;margin:0 auto}
@@ -39,37 +68,36 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;backg
 
 /* ── Page header ── */
 .ph{padding:20px 0 10px}
-.ph-title{font-size:30px;font-weight:700;letter-spacing:-.5px}
+.ph-title{font-size:30px;font-weight:800;letter-spacing:-.8px}
 .ph-sub{font-size:14px;color:var(--text-secondary);margin-top:3px}
 
 /* ── Card ── */
-.card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
-.card-title{font-size:17px;font-weight:600;margin-bottom:12px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r-sm);padding:var(--s4);margin-bottom:var(--s3)}
+.card-title{font-size:17px;font-weight:700;letter-spacing:-.2px;margin-bottom:var(--s3)}
 
-/* ── Badges ── */
-.badge{display:inline-flex;align-items:center;padding:4px 11px;border-radius:20px;font-size:13px;font-weight:600}
-.badge-blue{background:var(--accent-light);color:var(--accent)}
-.badge-gray{background:#f2f2f7;color:var(--text-secondary);font-size:12px}
-.badge-green{background:#e8f9ee;color:#1a7f3c}
-.badge-push{background:#e8f5e9;color:#2e7d32}
-.badge-pull{background:#e3f2fd;color:#1565c0}
-.badge-mob{background:#f3e5f5;color:#6a1b9a}
-.badge-lower{background:#fff3e0;color:#e65100}
-.badge-rest{background:#f5f5f5;color:#616161}
+/* ── Badges ──
+   Day-type badges carry meaning by letterform only — no hue. */
+.badge{display:inline-flex;align-items:center;padding:4px 9px;border-radius:var(--r-xs);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.badge-blue{background:var(--accent);color:var(--accent-ink)}
+.badge-green{background:var(--accent);color:var(--accent-ink)}
+.badge-gray{background:var(--surface-alt);color:var(--text-secondary)}
+.badge-push,.badge-pull,.badge-mob,.badge-lower,.badge-rest{background:transparent;border:1px solid var(--border);color:var(--text-secondary)}
 
-/* ── Section label ── */
-.sec-label{font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.6px;margin:18px 0 8px}
+/* ── Section label: high-contrast block ── */
+.sec-label{display:block;background:var(--surface-invert);color:var(--text-invert);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;padding:var(--s2) var(--s3);margin:18px 0 8px}
 
 /* ── Checklist ── */
 .checklist{list-style:none}
 .cl-item{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);cursor:pointer;min-height:48px;user-select:none}
 .cl-item:last-child{border-bottom:none}
-.cl-item input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent);flex-shrink:0;cursor:pointer}
+/* Black rather than volt: browsers pick the checkmark color themselves,
+   and a white check on volt is unreliable across engines. */
+.cl-item input[type=checkbox]{width:22px;height:22px;accent-color:var(--surface-invert);flex-shrink:0;cursor:pointer}
 .cl-item label{font-size:15px;cursor:pointer;flex:1;line-height:1.4}
 .cl-item.done label{text-decoration:line-through;color:var(--text-secondary)}
 
 /* ── Warning label ── */
-.warn-label{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:var(--red);background:var(--red-bg);padding:4px 9px;border-radius:8px;flex-shrink:0;line-height:1.3;margin-top:4px}
+.warn-label{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:var(--danger);background:var(--danger-bg);border-left:2px solid var(--danger);padding:4px 9px;border-radius:var(--r-xs);flex-shrink:0;line-height:1.3;margin-top:4px}
 
 /* ── Exercise block ── */
 .ex-block{margin-bottom:20px}
@@ -79,16 +107,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;backg
 .ex-target{font-size:12px;color:var(--text-secondary);margin-top:2px}
 .ex-divider{height:1px;background:var(--border);margin:16px 0}
 
-/* ── Recommendation badge ── */
-.rec-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:10px;font-size:12px;font-weight:600;margin-top:5px}
-.rec-up{background:#e8f9ee;color:#1a7f3c}
-.rec-same{background:var(--accent-light);color:var(--accent)}
-.rec-down{background:var(--red-bg);color:var(--red)}
-.rec-new{background:#f2f2f7;color:var(--text-secondary)}
+/* ── Recommendation badge ──
+   volt = go heavier · outline = hold · red = back off (injury-adjacent) */
+.rec-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:var(--r-xs);font-size:12px;font-weight:700;margin-top:5px}
+.rec-up{background:var(--accent);color:var(--accent-ink)}
+.rec-same{background:transparent;border:1px solid var(--border);color:var(--text-secondary)}
+.rec-down{background:var(--danger-bg);color:var(--danger);border-left:2px solid var(--danger)}
+.rec-new{background:var(--surface-alt);color:var(--text-secondary)}
 .last-sess{font-size:11px;color:var(--text-secondary);margin-top:3px;padding-left:1px}
 
 /* ── Previous session note ── */
-.prev-note{background:#fffbe6;border:1px solid #ffe066;border-radius:9px;padding:7px 10px;margin-top:7px;font-size:12px;color:#7a6000;line-height:1.5}
+.prev-note{background:var(--surface-alt);border-left:2px solid var(--border-strong);border-radius:0;padding:7px 10px;margin-top:7px;font-size:12px;color:var(--text-secondary);line-height:1.5}
 
 /* ── Log table ── */
 .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -2px}
@@ -97,8 +126,8 @@ table.log-tbl{border-collapse:collapse;min-width:420px;width:100%}
 .log-tbl th:first-child{text-align:left;width:30px;padding-left:0}
 .log-tbl td{padding:3px 3px;text-align:center;vertical-align:middle}
 .log-tbl td:first-child{font-size:13px;font-weight:600;color:var(--text-secondary);text-align:left;padding-left:0}
-.log-tbl input{width:100%;min-height:46px;border:1.5px solid var(--border);border-radius:9px;padding:4px 5px;font-size:15px;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;transition:border-color .15s,background .15s;-webkit-appearance:none}
-.log-tbl input:focus{outline:none;border-color:var(--accent);background:var(--accent-light)}
+.log-tbl input{width:100%;min-height:46px;border:1.5px solid var(--border);border-radius:var(--r-sm);padding:4px 5px;font-size:15px;font-weight:600;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease);-webkit-appearance:none}
+.log-tbl input:focus{outline:none;border-color:var(--border-strong);background:var(--card)}
 .log-tbl input.note-inp{text-align:left;font-size:13px}
 .log-tbl col.c-set{width:30px}
 .log-tbl col.c-kg{width:62px}
@@ -107,34 +136,35 @@ table.log-tbl{border-collapse:collapse;min-width:420px;width:100%}
 .log-tbl col.c-note{width:auto;min-width:80px}
 
 /* ── Farmer carry weight input ── */
-.carry-kg-inp{display:inline-block;width:70px;min-height:36px;border:1.5px solid var(--border);border-radius:8px;padding:4px 6px;font-size:14px;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;margin-left:8px;vertical-align:middle;-webkit-appearance:none}
-.carry-kg-inp:focus{outline:none;border-color:var(--accent);background:var(--accent-light)}
+.carry-kg-inp{display:inline-block;width:70px;min-height:36px;border:1.5px solid var(--border);border-radius:var(--r-sm);padding:4px 6px;font-size:14px;font-weight:600;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;margin-left:8px;vertical-align:middle;-webkit-appearance:none}
+.carry-kg-inp:focus{outline:none;border-color:var(--border-strong);background:var(--card)}
 .carry-hint{font-size:11px;color:var(--text-secondary);padding:2px 0 6px 34px}
 
 /* ── Buttons ── */
-.btn{display:block;width:100%;min-height:52px;border:none;border-radius:14px;font-size:17px;font-weight:600;cursor:pointer;transition:opacity .15s,transform .1s;font-family:inherit}
-.btn:active{opacity:.78;transform:scale(.98)}
-.btn-primary{background:var(--accent);color:#fff}
-.btn-success{background:var(--green);color:#fff}
-.btn-danger{background:var(--red);color:#fff}
-.btn-outline{background:transparent;border:1.5px solid var(--accent);color:var(--accent);font-size:15px;min-height:46px}
-.btn-sm{min-height:44px;font-size:14px;border-radius:11px}
+/* Bare .btn is the neutral secondary — variants below override the fill. */
+.btn{display:block;width:100%;min-height:52px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-alt);color:var(--text);font-size:16px;font-weight:700;letter-spacing:.2px;cursor:pointer;transition:opacity var(--dur) var(--ease),transform var(--dur) var(--ease);font-family:inherit}
+.btn:active{opacity:.85;transform:scale(.98)}
+.btn-primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.btn-success{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.btn-danger{background:var(--danger);color:var(--text-invert);border-color:transparent}
+.btn-outline{background:transparent;border:1.5px solid var(--border-strong);color:var(--text);font-size:15px;min-height:46px}
+.btn-sm{min-height:44px;font-size:14px;border-radius:var(--r-sm)}
 .btn + .btn{margin-top:10px}
 
-/* ── Completion banner ── */
-.complete-banner{background:var(--green-bg);border:1.5px solid var(--green);border-radius:14px;padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px}
+/* ── Completion banner: the app's biggest positive moment ── */
+.complete-banner{background:var(--accent);border:none;border-radius:var(--r-sm);padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px}
 .complete-banner .cb-icon{font-size:24px}
-.complete-banner .cb-text{font-size:15px;font-weight:600;color:#1a7f3c}
-.complete-banner .cb-sub{font-size:13px;color:#2d9e52}
+.complete-banner .cb-text{font-size:15px;font-weight:800;letter-spacing:-.2px;color:var(--accent-ink)}
+.complete-banner .cb-sub{font-size:13px;font-weight:600;color:var(--accent-ink);opacity:.7}
 
 /* ── Rest screen ── */
 .rest-screen{text-align:center;padding:50px 20px}
 .rest-icon{font-size:72px;margin-bottom:18px}
-.rest-title{font-size:26px;font-weight:700;margin-bottom:8px}
+.rest-title{font-size:26px;font-weight:800;letter-spacing:-.5px;margin-bottom:8px}
 .rest-sub{font-size:16px;color:var(--text-secondary);line-height:1.5}
 
 /* ── Log tab ── */
-.session-card{background:var(--card);border-radius:14px;margin-bottom:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.session-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:10px;overflow:hidden}
 .session-hdr{display:flex;align-items:center;justify-content:space-between;padding:15px 16px;cursor:pointer;min-height:56px;gap:8px}
 .session-date{font-weight:600;font-size:15px}
 .session-meta{font-size:12px;color:var(--text-secondary);margin-top:2px}
@@ -144,7 +174,7 @@ table.log-tbl{border-collapse:collapse;min-width:420px;width:100%}
 .session-body{display:none;padding:0 16px 16px;border-top:1px solid var(--border)}
 .session-body.open{display:block}
 .sess-ex{margin-top:14px}
-.sess-ex-name{font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.sess-ex-name{font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
 table.view-tbl{border-collapse:collapse;width:100%;font-size:13px}
 .view-tbl th{color:var(--text-secondary);font-weight:500;text-align:center;padding:5px 6px;font-size:11px;border-bottom:1px solid var(--border)}
 .view-tbl th:first-child{text-align:left}
@@ -160,42 +190,40 @@ table.view-tbl{border-collapse:collapse;width:100%;font-size:13px}
 .empty-sub{font-size:14px}
 
 /* ── Schedule tab ── */
-.phase-card{background:var(--card);border-radius:16px;margin-bottom:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)}
-.phase-hdr{padding:14px 16px;font-size:16px;font-weight:700;line-height:1.3}
-.ph1-hdr{background:#e8f5e9;color:#1b5e20}
-.ph2-hdr{background:#e3f2fd;color:#0d47a1}
-.ph3-hdr{background:#fce4ec;color:#880e4f}
-.ph4-hdr{background:#fff3e0;color:#bf360c}
+.phase-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:12px;overflow:hidden}
+/* All four phases share one black bar — the phase number carries the distinction. */
+.phase-hdr{padding:14px 16px;font-size:15px;font-weight:700;line-height:1.3;letter-spacing:-.2px;background:var(--surface-invert);color:var(--text-invert)}
+.ph1-hdr,.ph2-hdr,.ph3-hdr,.ph4-hdr{background:var(--surface-invert);color:var(--text-invert)}
 .phase-body{padding:10px 16px 14px}
 .pi{font-size:14px;padding:7px 0;border-bottom:1px solid var(--border);line-height:1.4}
 .pi:last-child{border-bottom:none}
-.pi-warn{color:var(--red);font-weight:600}
-.pi-amber{color:var(--amber);font-weight:600}
+.pi-warn{color:var(--danger);font-weight:700}
+.pi-amber{color:var(--text);font-weight:700}
 
 /* ── RPE table ── */
 table.rpe-tbl{border-collapse:collapse;width:100%;font-size:14px}
-.rpe-tbl th{background:#f2f2f7;padding:10px 14px;text-align:left;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.rpe-tbl th{background:var(--surface-alt);padding:10px 14px;text-align:left;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.8px}
 .rpe-tbl td{padding:11px 14px;border-bottom:1px solid var(--border);font-size:14px}
 .rpe-tbl tr:last-child td{border-bottom:none}
-.rpe-7{color:var(--accent);font-weight:700}
-.rpe-75{color:var(--amber);font-weight:700}
-.rpe-red{color:var(--red);font-weight:700}
+.rpe-7{color:var(--text);font-weight:700}
+.rpe-75{color:var(--text);font-weight:700}
+.rpe-red{color:var(--danger);font-weight:700}
 
 /* ── Progression tab ── */
 table.prog-tbl{border-collapse:collapse;width:100%;font-size:14px}
-.prog-tbl th{background:#f2f2f7;padding:10px 14px;text-align:left;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.prog-tbl th{background:var(--surface-alt);padding:10px 14px;text-align:left;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.8px}
 .prog-tbl td{padding:10px 14px;border-bottom:1px solid var(--border)}
 .prog-tbl tr:last-child td{border-bottom:none}
-.prog-tbl td:last-child{text-align:right;font-weight:600;color:var(--accent)}
+.prog-tbl td:last-child{text-align:right;font-weight:700;color:var(--text)}
 .rule-row{padding:8px 0;border-bottom:1px solid var(--border);font-size:14px;line-height:1.5}
 .rule-row:last-child{border-bottom:none}
-.red-flag{color:var(--red);font-weight:600}
+.red-flag{color:var(--danger);font-weight:700}
 
 /* ── DNA card ── */
-.dna-card{background:var(--amber-bg);border:1.5px solid #ffd070;border-radius:14px;padding:14px 16px;margin-bottom:10px}
-.dna-title{font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
+.dna-card{background:var(--card);border:2px solid var(--border-strong);border-radius:var(--r-sm);padding:14px 16px;margin-bottom:10px}
+.dna-title{font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px}
 .dna-item{font-size:14px;padding:5px 0;line-height:1.4;display:flex;gap:8px}
-.dna-item::before{content:"⚑";color:var(--amber);flex-shrink:0;margin-top:1px}
+.dna-item::before{content:"⚑";color:var(--text);flex-shrink:0;margin-top:1px}
 
 /* ── Settings ── */
 .setting-row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--border);min-height:54px;gap:8px}
@@ -203,18 +231,18 @@ table.prog-tbl{border-collapse:collapse;width:100%;font-size:14px}
 .setting-label{font-size:15px;font-weight:500}
 .setting-sub{font-size:12px;color:var(--text-secondary);margin-top:2px}
 .setting-val{font-size:14px;color:var(--text-secondary);text-align:right}
-input[type=date].date-input{height:44px;border:1.5px solid var(--border);border-radius:10px;padding:0 12px;font-size:15px;background:var(--bg);color:var(--text);font-family:inherit;min-width:156px;-webkit-appearance:none}
-input[type=date].date-input:focus{outline:none;border-color:var(--accent)}
+input[type=date].date-input{height:44px;border:1.5px solid var(--border);border-radius:var(--r-sm);padding:0 12px;font-size:15px;background:var(--bg);color:var(--text);font-family:inherit;min-width:156px;-webkit-appearance:none}
+input[type=date].date-input:focus{outline:none;border-color:var(--border-strong)}
 
 /* ── Log view toggle ── */
 .view-toggle{display:flex;gap:6px;margin-bottom:14px}
-.vt-btn{flex:1;min-height:40px;border:1.5px solid var(--accent);border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s;background:transparent;color:var(--accent)}
-.vt-btn.active{background:var(--accent);color:#fff}
+.vt-btn{flex:1;min-height:40px;border:1.5px solid var(--border-strong);border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:background var(--dur) var(--ease),color var(--dur) var(--ease);background:transparent;color:var(--text)}
+.vt-btn.active{background:var(--surface-invert);color:var(--text-invert)}
 
 /* ── Export row ── */
 .export-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
-.export-sel{flex:1;min-width:0;height:44px;border:1.5px solid var(--border);border-radius:11px;padding:0 12px;font-size:14px;background:var(--bg);color:var(--text);font-family:inherit}
-.export-sel:focus{outline:none;border-color:var(--accent)}
+.export-sel{flex:1;min-width:0;height:44px;border:1.5px solid var(--border);border-radius:var(--r-sm);padding:0 12px;font-size:14px;background:var(--bg);color:var(--text);font-family:inherit}
+.export-sel:focus{outline:none;border-color:var(--border-strong)}
 
 /* ── Print ── */
 @media print{
@@ -225,27 +253,30 @@ input[type=date].date-input:focus{outline:none;border-color:var(--accent)}
   .card,.session-card,.phase-card{box-shadow:none;border:1px solid #ccc}
 }
 
-#login-gate{position:fixed;inset:0;background:var(--bg,#f5f5f5);display:flex;align-items:center;justify-content:center;z-index:1000}
-.login-card{max-width:320px;width:90%;background:#fff;border-radius:12px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,.1);text-align:center}
-.login-card input{width:100%;padding:10px;margin:12px 0;border:1px solid #ccc;border-radius:8px;font-size:14px;box-sizing:border-box}
-.login-card button{width:100%;padding:10px;border:none;border-radius:8px;background:var(--accent,#2563eb);color:#fff;font-size:14px;cursor:pointer}
-#login-status{margin-top:10px;font-size:12px;color:var(--text-secondary,#888)}
+#login-gate{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:1000}
+.login-card{max-width:320px;width:90%;background:var(--card);border:1px solid var(--border);border-radius:var(--r-sm);padding:24px;text-align:center}
+.login-card input{width:100%;padding:11px;margin:12px 0;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:14px;font-family:inherit;background:var(--bg);color:var(--text);box-sizing:border-box}
+.login-card input:focus{outline:none;border-color:var(--border-strong)}
+/* Black, not volt — this is a neutral gateway, not a progress moment. */
+.login-card button{width:100%;padding:11px;border:none;border-radius:var(--r-sm);background:var(--surface-invert);color:var(--text-invert);font-size:14px;font-weight:700;font-family:inherit;cursor:pointer}
+#login-status{margin-top:10px;font-size:12px;color:var(--text-secondary)}
 body.authed #login-gate{display:none}
 body:not(.authed) .tab-bar,body:not(.authed) .tab-pane{display:none}
 
-.btn-ask-claude{margin-top:6px;padding:5px 10px;font-size:12px;border:1px solid var(--accent,#2563eb);color:var(--accent,#2563eb);background:none;border-radius:6px;cursor:pointer}
+.btn-ask-claude{margin-top:6px;padding:5px 10px;font-size:12px;font-weight:600;border:1px solid var(--border-strong);color:var(--text);background:none;border-radius:var(--r-xs);cursor:pointer;font-family:inherit}
 
 .coach-thread{display:flex;flex-direction:column;gap:10px;padding-bottom:12px}
-.coach-msg{max-width:85%;padding:10px 13px;border-radius:14px;font-size:14px;line-height:1.5;white-space:pre-wrap}
-.coach-msg.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
-.coach-msg.assistant{align-self:flex-start;background:var(--card);border:1px solid var(--border);border-bottom-left-radius:4px}
+.coach-msg{max-width:85%;padding:10px 13px;border-radius:var(--r-sm);font-size:14px;line-height:1.5;white-space:pre-wrap}
+.coach-msg.user{align-self:flex-end;background:var(--surface-invert);color:var(--text-invert)}
+.coach-msg.assistant{align-self:flex-start;background:var(--card);border:1px solid var(--border)}
 .coach-msg.pending{opacity:.6}
 .coach-empty{color:var(--text-secondary);font-size:14px;text-align:center;padding:24px 12px}
 .coach-input-row{position:sticky;bottom:0;display:flex;gap:8px;padding:10px 0;background:var(--bg)}
-.coach-input{flex:1;min-height:44px;border:1.5px solid var(--border);border-radius:12px;padding:10px 14px;font-size:15px;background:var(--card);color:var(--text);font-family:inherit;resize:none}
-.coach-send-btn{min-width:64px;border:none;border-radius:12px;background:var(--accent);color:#fff;font-size:14px;font-weight:600;cursor:pointer}
-.coach-send-btn:disabled{opacity:.5;cursor:default}
-.coach-error{color:#c0392b;font-size:13px;text-align:center;padding:6px 0}
+.coach-input{flex:1;min-height:44px;border:1.5px solid var(--border);border-radius:var(--r-sm);padding:10px 14px;font-size:15px;background:var(--card);color:var(--text);font-family:inherit;resize:none}
+.coach-input:focus{outline:none;border-color:var(--border-strong)}
+.coach-send-btn{min-width:64px;border:none;border-radius:var(--r-sm);background:var(--accent);color:var(--accent-ink);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
+.coach-send-btn:disabled{opacity:.4;cursor:default}
+.coach-error{color:var(--danger);font-size:13px;text-align:center;padding:6px 0}
 </style>
 </head>
 <body>
@@ -1182,7 +1213,7 @@ function renderLog() {
             <div style="font-size:13px;padding:4px 0;line-height:2">`;
           ex.rounds.forEach((done, r) => {
             const weightLabel = isCarry && ex.weights && ex.weights[r]
-              ? ` <span style="color:var(--accent);font-weight:600">${ex.weights[r]} kg</span>`
+              ? ` <span style="color:var(--text);font-weight:700">${ex.weights[r]} kg</span>`
               : '';
             h += `<span style="margin-right:14px">${done ? '✅' : '⬜'} Set ${r+1}${weightLabel}</span>`;
           });
@@ -1353,7 +1384,7 @@ function renderWeeklyView(sessions) {
     const weFmt = fmtDate(weStr, {day:'numeric', month:'short'});
 
     h += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">
-      <div style="padding:11px 16px;background:#f8f8fa;border-bottom:1px solid var(--border)">
+      <div style="padding:11px 16px;background:var(--surface-alt);border-bottom:1px solid var(--border)">
         <div style="font-weight:700;font-size:15px">Week ${w} &nbsp;<span style="font-size:12px;font-weight:400;color:var(--text-secondary)">Phase ${phase}</span></div>
         <div style="font-size:12px;color:var(--text-secondary)">${wsFmt} &ndash; ${weFmt}</div>
       </div>`;
@@ -1378,8 +1409,8 @@ function renderWeeklyView(sessions) {
       let statusHtml;
       if (isRest)        statusHtml = `<span style="font-size:12px;color:var(--text-secondary)">Rest</span>`;
       else if (isFuture) statusHtml = `<span style="font-size:12px;color:var(--text-secondary)">—</span>`;
-      else if (done)     statusHtml = `<span style="font-size:12px;color:var(--green);font-weight:600">✅ Done</span>`;
-      else               statusHtml = `<span style="font-size:12px;color:var(--red);font-weight:600">⬜ Missed</span>`;
+      else if (done)     statusHtml = `<span style="font-size:12px;color:var(--text);font-weight:700">✅ Done</span>`;
+      else               statusHtml = `<span style="font-size:12px;color:var(--text-secondary);font-weight:600">⬜ Missed</span>`;
 
       const noBorder = d === 6 ? 'border-bottom:none' : 'border-bottom:1px solid var(--border)';
       h += `<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;${noBorder};${isFuture?'opacity:.45':''}">
@@ -1396,7 +1427,7 @@ function renderWeeklyView(sessions) {
   h += `<div class="sec-label">Adherence by Day Type</div>
   <div class="card" style="padding:0;overflow:hidden">
     <table style="width:100%;border-collapse:collapse">
-      <thead><tr style="background:#f2f2f7">
+      <thead><tr style="background:var(--surface-alt)">
         <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Day Type</th>
         <th style="padding:10px 14px;text-align:center;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Done</th>
         <th style="padding:10px 14px;text-align:center;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Sched</th>
@@ -1410,9 +1441,9 @@ function renderWeeklyView(sessions) {
     const badgeCls = typeBadgeClass(t);
     h += `<tr style="border-top:1px solid var(--border)">
       <td style="padding:10px 14px"><span class="badge ${badgeCls}">${t}</span></td>
-      <td style="padding:10px 14px;text-align:center;color:var(--green);font-weight:600">${doneCount}</td>
+      <td style="padding:10px 14px;text-align:center;color:var(--text);font-weight:700">${doneCount}</td>
       <td style="padding:10px 14px;text-align:center">${sched}</td>
-      <td style="padding:10px 14px;text-align:center;${miss !== null && miss > 50 ? 'color:var(--red);font-weight:600' : ''}">${miss !== null ? miss+'%' : '—'}</td>
+      <td style="padding:10px 14px;text-align:center;${miss !== null && miss > 50 ? 'color:var(--text);font-weight:700' : ''}">${miss !== null ? miss+'%' : '—'}</td>
     </tr>`;
   });
   h += `</tbody></table></div>`;
@@ -1506,7 +1537,7 @@ function renderProgression() {
     const weightDisplay = carry.weights.filter(w => w && parseFloat(w) > 0).join(' / ');
     if (!weightDisplay) return;
     const dateFmt = fmtDate(sess.date, { weekday:'short', day:'numeric', month:'short' });
-    carryRows += `<tr><td>${dateFmt}</td><td style="text-align:right;font-weight:600;color:var(--accent)">${weightDisplay} kg</td></tr>`;
+    carryRows += `<tr><td>${dateFmt}</td><td style="text-align:right;font-weight:700;color:var(--text)">${weightDisplay} kg</td></tr>`;
   });
 
   const carrySection = carryRows ? `
