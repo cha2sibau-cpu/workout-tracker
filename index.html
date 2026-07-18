@@ -115,6 +115,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;backg
 .rec-down{background:var(--danger-bg);color:var(--danger);border-left:2px solid var(--danger)}
 .rec-new{background:var(--surface-alt);color:var(--text-secondary)}
 .last-sess{font-size:11px;color:var(--text-secondary);margin-top:3px;padding-left:1px}
+.last-sess.rec-loading{font-style:italic;opacity:.75}
 
 /* ── Previous session note ── */
 .prev-note{background:var(--surface-alt);border-left:2px solid var(--border-strong);border-radius:0;padding:7px 10px;margin-top:7px;font-size:12px;color:var(--text-secondary);line-height:1.5}
@@ -128,12 +129,14 @@ table.log-tbl{border-collapse:collapse;min-width:420px;width:100%}
 .log-tbl td:first-child{font-size:13px;font-weight:600;color:var(--text-secondary);text-align:left;padding-left:0}
 .log-tbl input{width:100%;min-height:46px;border:1.5px solid var(--border);border-radius:var(--r-sm);padding:4px 5px;font-size:15px;font-weight:600;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease);-webkit-appearance:none}
 .log-tbl input:focus{outline:none;border-color:var(--border-strong);background:var(--card)}
-.log-tbl input.note-inp{text-align:left;font-size:13px}
 .log-tbl col.c-set{width:30px}
 .log-tbl col.c-kg{width:62px}
 .log-tbl col.c-reps{width:58px}
 .log-tbl col.c-rpe{width:54px}
-.log-tbl col.c-note{width:auto;min-width:80px}
+
+/* ── Per-exercise note input ── */
+.ex-note-inp{width:100%;box-sizing:border-box;margin-top:8px;min-height:40px;border:1.5px solid var(--border);border-radius:var(--r-sm);padding:8px 10px;font-size:13px;text-align:left;background:var(--bg);color:var(--text);font-family:inherit;-webkit-appearance:none;transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+.ex-note-inp:focus{outline:none;border-color:var(--border-strong);background:var(--card)}
 
 /* ── Farmer carry weight input ── */
 .carry-kg-inp{display:inline-block;width:70px;min-height:36px;border:1.5px solid var(--border);border-radius:var(--r-sm);padding:4px 6px;font-size:14px;font-weight:600;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;margin-left:8px;vertical-align:middle;-webkit-appearance:none}
@@ -596,20 +599,17 @@ function getExerciseRecommendation(exerciseName, targetRepsStr, phase) {
   return null;
 }
 
-// Returns notes from the most recent session for an exercise
-function getPreviousNotes(exerciseName) {
+// Returns the note (if any) from the most recent session for an exercise.
+function getPreviousNote(exerciseName) {
   const sessions = getSessions().slice().reverse();
   for (const sess of sessions) {
     if (!sess.exercises) continue;
     const ex = sess.exercises.find(e => e.name === exerciseName);
-    if (!ex || !ex.sets) continue;
-    const notes = [];
-    ex.sets.forEach(s => {
-      if (s.note && s.note.trim()) notes.push(s.note.trim());
-    });
-    if (notes.length) return notes;
+    if (!ex) continue;
+    const note = exNote(ex);
+    if (note) return note;
   }
-  return [];
+  return '';
 }
 
 // Returns the last logged weight for farmer's carry
@@ -886,25 +886,18 @@ function renderToday() {
 
       const numSets = getSetsForPhase(ex.name, phase);
       const rec = getExerciseRecommendation(ex.name, ex.reps, phase);
-      const prevNotes = getPreviousNotes(ex.name);
+      const prevNote = getPreviousNote(ex.name);
 
-      // Recommendation display
-      let recHtml = '';
-      if (!rec) {
-        recHtml = `<div class="rec-badge rec-new">No prior data — start light</div>`;
-      } else {
-        const dirIcon = rec.dir === 'up' ? '↑' : rec.dir === 'down' ? '↓' : '→';
-        const dirClass = rec.dir === 'up' ? 'rec-up' : rec.dir === 'down' ? 'rec-down' : rec.dir === 'new' ? 'rec-new' : 'rec-same';
-        const kgText = rec.kg > 0 ? ` @ ${rec.kg} kg` : '';
-        recHtml = `
-          <div class="rec-badge ${dirClass}">${dirIcon} Rec: ${rec.sets}×${rec.reps}${kgText}</div>
-          <div class="last-sess">Last: ${rec.lastSummary}</div>`;
-      }
+      // Recommendation display — Claude's recommendation once loaded, with the
+      // local heuristic as an instant fallback. The slot id lets the async
+      // fetch swap in Claude's version without re-rendering the whole screen.
+      const dKey = today + '|' + dayType;
+      const recHtml = `<div class="rec-slot" id="rec-slot-${ei}">${recBadgeHtml(rec, claudeRecFor(dKey, ex.name), claudeRecsLoading(dKey))}</div>`;
 
-      // Previous session notes
+      // Previous session note
       let noteHtml = '';
-      if (prevNotes.length) {
-        noteHtml = `<div class="prev-note">📝 Last session: ${prevNotes.map(n => `"${esc(n)}"`).join(' · ')}</div>`;
+      if (prevNote) {
+        noteHtml = `<div class="prev-note">📝 Last session: "${esc(prevNote)}"</div>`;
       }
 
       h += `<div class="ex-block">
@@ -916,8 +909,8 @@ function renderToday() {
           <button class="btn-ask-claude" onclick="askCoachAboutExercise('${ex.name.replace(/'/g, "\\'")}')">🤖 Ask Claude</button>
         </div>
         <div class="tbl-wrap"><table class="log-tbl">
-          <colgroup><col class="c-set"><col class="c-kg"><col class="c-reps"><col class="c-rpe"><col class="c-note"></colgroup>
-          <thead><tr><th>Set</th><th>kg</th><th>Reps</th><th>RPE</th><th>Note</th></tr></thead>
+          <colgroup><col class="c-set"><col class="c-kg"><col class="c-reps"><col class="c-rpe"></colgroup>
+          <thead><tr><th>Set</th><th>kg</th><th>Reps</th><th>RPE</th></tr></thead>
           <tbody>`;
 
       const baseRep = ex.reps.split('–')[0];
@@ -933,11 +926,14 @@ function renderToday() {
             oninput="upDraft('${today}','${dayType}',${ei},${s},'reps',this.value)"></td>
           <td><input type="text" inputmode="decimal" placeholder="—" value="${esc(sd.rpe||'')}"
             oninput="upDraft('${today}','${dayType}',${ei},${s},'rpe',this.value.replace(',','.'))"></td>
-          <td><input type="text" placeholder="note" value="${esc(sd.note||'')}" class="note-inp"
-            oninput="upDraft('${today}','${dayType}',${ei},${s},'note',this.value)"></td>
         </tr>`;
       }
-      h += `</tbody></table></div></div>`;
+      // One note per exercise (not per set).
+      const exNoteVal = draftDay[ei + '_note'] || '';
+      h += `</tbody></table></div>
+        <input type="text" class="ex-note-inp" placeholder="Note for this exercise (optional)" value="${esc(exNoteVal)}"
+          oninput="upExNote('${today}','${dayType}',${ei},this.value)">
+      </div>`;
     });
     h += `</div>`;
 
@@ -950,6 +946,99 @@ function renderToday() {
   h += buildComingUp(today);
 
   el.innerHTML = h;
+
+  // On weighted-exercise days, ask Claude to generate the recommendations
+  // (grounded in the previous same-type session + program). Slots are already
+  // showing the local fallback; this swaps in Claude's version when ready.
+  if (document.getElementById('rec-slot-0')) {
+    ensureClaudeRecs(today, dayType, phase, weekNum, workout.exercises);
+  }
+}
+
+// ════════════════════════════════════════════════════
+//  CLAUDE-GENERATED ON-SCREEN RECOMMENDATIONS
+// ════════════════════════════════════════════════════
+// One batched call per workout (not one per exercise), cached per day so
+// switching tabs doesn't refetch. The local heuristic shows instantly as a
+// fallback and stays if the call is loading or fails.
+const claudeRecsCache = {};
+
+function claudeRecsLoading(dKey) {
+  return !!(claudeRecsCache[dKey] && claudeRecsCache[dKey].status === 'loading');
+}
+function claudeRecFor(dKey, name) {
+  const e = claudeRecsCache[dKey];
+  return e && e.recs ? (e.recs[name] || null) : null;
+}
+
+function recBadgeHtml(localRec, claudeRec, loading) {
+  const icon = d => d === 'up' ? '↑' : d === 'down' ? '↓' : d === 'new' ? '•' : '→';
+  const cls  = d => d === 'up' ? 'rec-up' : d === 'down' ? 'rec-down' : d === 'new' ? 'rec-new' : 'rec-same';
+  if (claudeRec) {
+    const kgText = claudeRec.kg > 0 ? ` @ ${claudeRec.kg} kg` : '';
+    return `<div class="rec-badge ${cls(claudeRec.dir)}">🤖 ${icon(claudeRec.dir)} Rec: ${claudeRec.sets}×${esc(String(claudeRec.reps))}${kgText}</div>`
+      + (claudeRec.note ? `<div class="last-sess">${esc(claudeRec.note)}</div>` : '');
+  }
+  let base;
+  if (!localRec) {
+    base = `<div class="rec-badge rec-new">No prior data — start light</div>`;
+  } else {
+    const kgText = localRec.kg > 0 ? ` @ ${localRec.kg} kg` : '';
+    base = `<div class="rec-badge ${cls(localRec.dir)}">${icon(localRec.dir)} Rec: ${localRec.sets}×${localRec.reps}${kgText}</div>`
+      + `<div class="last-sess">Last: ${localRec.lastSummary}</div>`;
+  }
+  if (loading) base += `<div class="last-sess rec-loading">🤖 Claude is reviewing your last session…</div>`;
+  return base;
+}
+
+// Update only the rec slots in place, so an in-progress set/rep input doesn't
+// lose focus from a full re-render.
+function paintRecSlots(dKey, dayType, phase, exercises) {
+  if (localDateStr() + '|' + dayType !== dKey) return; // day rolled over
+  const loading = claudeRecsLoading(dKey);
+  exercises.forEach((ex, ei) => {
+    const slot = document.getElementById('rec-slot-' + ei);
+    if (!slot) return; // user navigated away or day type changed
+    const localRec = getExerciseRecommendation(ex.name, ex.reps, phase);
+    slot.innerHTML = recBadgeHtml(localRec, claudeRecFor(dKey, ex.name), loading);
+  });
+}
+
+async function ensureClaudeRecs(today, dayType, phase, weekNum, exercises) {
+  const dKey = today + '|' + dayType;
+  const cached = claudeRecsCache[dKey];
+  if (cached && (cached.status === 'loading' || cached.status === 'done')) return;
+
+  claudeRecsCache[dKey] = { status: 'loading', recs: {} };
+  paintRecSlots(dKey, dayType, phase, exercises);
+
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { claudeRecsCache[dKey] = { status: 'error', recs: {} }; return; }
+
+    const isDeload = phase === 4 && weekNum <= 22;
+    const payload = {
+      phase, weekNum, dayType, isDeload,
+      exercises: exercises.map(ex => ({
+        name: ex.name, targetReps: ex.reps, recSets: getSetsForPhase(ex.name, phase)
+      }))
+    };
+    const res = await fetch(SUPABASE_URL + '/functions/v1/recommend', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify(payload)
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Request failed');
+
+    const recs = {};
+    (body.recommendations || []).forEach(r => { if (r && r.name) recs[r.name] = r; });
+    claudeRecsCache[dKey] = { status: 'done', recs };
+  } catch (err) {
+    console.error('recommend failed', err);
+    claudeRecsCache[dKey] = { status: 'error', recs: {} };
+  }
+  paintRecSlots(dKey, dayType, phase, exercises);
 }
 
 function askCoachAboutExercise(exerciseName) {
@@ -1069,6 +1158,28 @@ function upDraft(date, dayType, ei, s, field, val) {
   saveDraft(draft);
 }
 
+// A single note per exercise, stored under a per-exercise key (ei + '_note')
+// that can't collide with the per-set keys (ei + '_' + s).
+function upExNote(date, dayType, ei, val) {
+  const draft = getDraft();
+  const dKey  = date + '|' + dayType;
+  if (!draft[dKey]) draft[dKey] = {};
+  draft[dKey][ei + '_note'] = val;
+  saveDraft(draft);
+}
+
+// Note for a logged exercise, regardless of format. New sessions store one
+// note per exercise; older sessions stored a note on each set — fall back to
+// joining those for backward compatibility.
+function exNote(ex) {
+  if (ex.note !== undefined && ex.note !== null) return String(ex.note).trim();
+  if (ex.sets) {
+    const perSet = ex.sets.map(s => (s && s.note || '').trim()).filter(Boolean);
+    return perSet.join(' · ');
+  }
+  return '';
+}
+
 function collectExercises(date, dayType) {
   const info     = getCycleInfo(date);
   const phase    = info ? info.phase : 1;
@@ -1082,9 +1193,9 @@ function collectExercises(date, dayType) {
     const sets = [];
     for (let s = 1; s <= numSets; s++) {
       const sd = draftDay[ei+'_'+s] || {};
-      sets.push({ set:s, kg:sd.kg||'', reps:sd.reps||'', rpe:sd.rpe||'', note:sd.note||'' });
+      sets.push({ set:s, kg:sd.kg||'', reps:sd.reps||'', rpe:sd.rpe||'' });
     }
-    return { name: ex.name, sets };
+    return { name: ex.name, note: draftDay[ei+'_note'] || '', sets };
   });
 }
 
@@ -1132,8 +1243,7 @@ function renderSetRow(st, idx) {
       <td>${st.set || idx+1}</td>
       <td>${st.kg||'—'}</td>
       <td>${st.reps||'—'}</td>
-      <td>${st.rpe||'—'}</td>
-      <td>${esc(st.note||'')}</td></tr>`;
+      <td>${st.rpe||'—'}</td></tr>`;
   } else {
     // Old format: r1/r2/r3 within a single row — expand to 3 rows
     let rows = '';
@@ -1143,11 +1253,10 @@ function renderSetRow(st, idx) {
           <td>${n}</td>
           <td>${st.kg||'—'}</td>
           <td>${st[key]||'—'}</td>
-          <td>${n===1?st.rpe||'—':'—'}</td>
-          <td>${n===1?esc(st.note||''):''}</td></tr>`;
+          <td>${n===1?st.rpe||'—':'—'}</td></tr>`;
       });
     } else {
-      rows = `<tr><td>—</td><td>${st.kg||'—'}</td><td>—</td><td>${st.rpe||'—'}</td><td>${esc(st.note||'')}</td></tr>`;
+      rows = `<tr><td>—</td><td>${st.kg||'—'}</td><td>—</td><td>${st.rpe||'—'}</td></tr>`;
     }
     return rows;
   }
@@ -1221,10 +1330,12 @@ function renderLog() {
         });
       } else if (hasRegEx) {
         sess.exercises.forEach(ex => {
+          const note = exNote(ex);
           h += `<div class="sess-ex">
             <div class="sess-ex-name">${ex.name}</div>
+            ${note ? `<div class="prev-note">📝 ${esc(note)}</div>` : ''}
             <table class="view-tbl">
-              <thead><tr><th>Set</th><th>kg</th><th>Reps</th><th>RPE</th><th>Note</th></tr></thead>
+              <thead><tr><th>Set</th><th>kg</th><th>Reps</th><th>RPE</th></tr></thead>
               <tbody>`;
           ex.sets.forEach((st, si) => {
             h += renderSetRow(st, si);
@@ -1324,17 +1435,19 @@ function exportWeek(weekStartStr) {
       } else if (hasReg) {
         s.exercises.forEach(ex => {
           const isNew = ex.sets[0] && ex.sets[0].reps !== undefined;
-          doc += `<h3>${ex.name}</h3>
-            <table><tr><th>Set</th><th>kg</th><th>Reps</th><th>RPE</th><th>Note</th></tr>`;
+          const note = exNote(ex);
+          doc += `<h3>${ex.name}</h3>`;
+          if (note) doc += `<p class="ex-note">📝 ${esc(note)}</p>`;
+          doc += `<table><tr><th>Set</th><th>kg</th><th>Reps</th><th>RPE</th></tr>`;
           if (isNew) {
             ex.sets.forEach(st => {
-              doc += `<tr><td>${st.set||''}</td><td>${st.kg||'—'}</td><td>${st.reps||'—'}</td><td>${st.rpe||'—'}</td><td>${st.note||''}</td></tr>`;
+              doc += `<tr><td>${st.set||''}</td><td>${st.kg||'—'}</td><td>${st.reps||'—'}</td><td>${st.rpe||'—'}</td></tr>`;
             });
           } else {
             // Old format
             ex.sets.forEach((st, si) => {
               [[1,'r1'],[2,'r2'],[3,'r3']].forEach(([n,key]) => {
-                if (st[key]) doc += `<tr><td>${n}</td><td>${st.kg||'—'}</td><td>${st[key]||'—'}</td><td>${n===1?st.rpe||'—':'—'}</td><td>${n===1?st.note||'':''}</td></tr>`;
+                if (st[key]) doc += `<tr><td>${n}</td><td>${st.kg||'—'}</td><td>${st[key]||'—'}</td><td>${n===1?st.rpe||'—':'—'}</td></tr>`;
               });
             });
           }

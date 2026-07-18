@@ -89,7 +89,14 @@ Deno.serve(async (req) => {
     },
     body: JSON.stringify({
       model: "claude-sonnet-5",
-      max_tokens: 500,
+      max_tokens: 1024,
+      // Sonnet 5 runs adaptive thinking by default when `thinking` is omitted,
+      // and max_tokens caps thinking + text combined. With a small cap the
+      // thinking blocks (whose text is hidden by default) consumed the whole
+      // budget, so the response hit max_tokens before emitting any text block —
+      // surfacing as "no reply text (stop_reason: max_tokens)". A conversational
+      // coach reply doesn't need extended thinking, so disable it.
+      thinking: { type: "disabled" },
       messages: [{ role: "user", content: prompt }],
     }),
   });

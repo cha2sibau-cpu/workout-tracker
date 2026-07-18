@@ -1,7 +1,13 @@
 // supabase/functions/coach/logic.test.ts
 
 import { assertEquals, assertStringIncludes } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { buildCoachPrompt, computeTrendSummary } from "./logic.ts";
+import {
+  buildCoachPrompt,
+  buildRecommendPrompt,
+  computeTrendSummary,
+  exerciseNote,
+  summarizeLastSameTypeSession,
+} from "./logic.ts";
 
 Deno.test("computeTrendSummary summarizes first-to-latest per exercise", () => {
   const sessions = [
@@ -51,4 +57,48 @@ Deno.test("buildCoachPrompt includes recent conversation, trend summary, and the
   assertStringIncludes(prompt, "I tweaked my shoulder last week");
   assertStringIncludes(prompt, "Prioritize long-term, sustainable progress");
   assertStringIncludes(prompt, "Can I increase weight on rows?");
+});
+
+Deno.test("exerciseNote reads the per-exercise note", () => {
+  assertEquals(exerciseNote({ name: "DB bench press", note: "shoulder felt good", sets: [] }), "shoulder felt good");
+});
+
+Deno.test("exerciseNote falls back to joining legacy per-set notes", () => {
+  const ex = { name: "DB bench press", sets: [{ note: "set 1 easy" }, { note: "" }, { note: "grip slipped" }] };
+  assertEquals(exerciseNote(ex), "set 1 easy · grip slipped");
+});
+
+Deno.test("summarizeLastSameTypeSession picks the most recent matching session", () => {
+  const sessions = [
+    { date: "2026-01-04", dayType: "Push", exercises: [{ name: "DB bench press", note: "solid", sets: [{ kg: "22", reps: "8", rpe: "8" }] }] },
+    { date: "2026-01-01", dayType: "Push", exercises: [{ name: "DB bench press", sets: [{ kg: "20", reps: "8" }] }] },
+    { date: "2026-01-03", dayType: "Pull", exercises: [{ name: "Lat Pulldown", sets: [{ kg: "40", reps: "10" }] }] },
+  ];
+  const summary = summarizeLastSameTypeSession(sessions, "Push");
+  assertStringIncludes(summary, "Last Push session (2026-01-04)");
+  assertStringIncludes(summary, "DB bench press: 22kg×8 @RPE8");
+  assertStringIncludes(summary, 'note: "solid"');
+  // The older Push session and the Pull session must not appear.
+  assertEquals(summary.includes("20kg"), false);
+  assertEquals(summary.includes("Lat Pulldown"), false);
+});
+
+Deno.test("summarizeLastSameTypeSession reports when no matching session exists", () => {
+  assertEquals(
+    summarizeLastSameTypeSession([], "Push"),
+    "No prior Push session logged yet.",
+  );
+});
+
+Deno.test("buildRecommendPrompt lists exercises, program rules, and deload guard", () => {
+  const prompt = buildRecommendPrompt({
+    phase: 4, weekNum: 21, dayType: "Push", isDeload: true,
+    lastSameTypeSummary: "Last Push session (2026-01-04): DB bench press: 22kg×8",
+    trendSummary: "DB bench press: 18kg -> 22kg, trend up",
+    exercises: [{ name: "DB bench press", targetReps: "8–10", recSets: 2 }],
+  });
+  assertStringIncludes(prompt, "DB bench press (target 8–10 reps, 2 sets planned)");
+  assertStringIncludes(prompt, "Last Push session (2026-01-04)");
+  assertStringIncludes(prompt, "MANDATORY deload week");
+  assertStringIncludes(prompt, "6-month, 4-phase periodisation program");
 });
