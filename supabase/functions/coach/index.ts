@@ -1,7 +1,7 @@
 // supabase/functions/coach/index.ts
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { buildCoachPrompt, computeTrendSummary, type ChatMessage } from "./logic.ts";
+import { buildCoachPrompt, computeTrendSummary, type ChatMessage, type ProgramContext } from "./logic.ts";
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -34,13 +34,13 @@ Deno.serve(async (req) => {
   const { data: userData, error: userErr } = await supabase.auth.getUser();
   if (userErr || !userData.user) return jsonResponse({ error: "Invalid session" }, 401);
 
-  let body: { message?: string; phase?: number; weekNum?: number; dayType?: string; isDeload?: boolean };
+  let body: { message?: string; phase?: number; weekNum?: number; dayType?: string; isDeload?: boolean; program?: ProgramContext };
   try {
     body = await req.json();
   } catch {
     return jsonResponse({ error: "Invalid JSON body" }, 400);
   }
-  const { message, phase, weekNum, dayType, isDeload } = body;
+  const { message, phase, weekNum, dayType, isDeload, program } = body;
   if (!message || typeof message !== "string") {
     return jsonResponse({ error: "message is required" }, 400);
   }
@@ -78,6 +78,7 @@ Deno.serve(async (req) => {
     trendSummary,
     recentMessages,
     newMessage: message,
+    program,
   });
 
   const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {

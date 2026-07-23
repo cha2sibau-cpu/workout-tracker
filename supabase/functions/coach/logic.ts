@@ -7,6 +7,47 @@ export interface ChatMessage { role: "user" | "assistant"; content: string; }
 
 export interface TodayExercise { name: string; targetReps: string; recSets: number; }
 
+// The structured program context the frontend now sends so the coach can
+// reason about the actual schedule and today's exercise ordering/supersets —
+// data it previously never received.
+export interface ProgramExercise { name: string; targetReps?: string; sets?: number; warning?: string | null; }
+export interface ProgramContext {
+  cycle?: string[];
+  dayType?: string;
+  isMobility?: boolean;
+  isRest?: boolean;
+  todayExercises?: ProgramExercise[];
+}
+
+function formatExerciseList(exercises: ProgramExercise[]): string {
+  return exercises
+    .map((e, i) => {
+      const bits = [`${i + 1}. ${e.name}`];
+      if (e.targetReps) bits.push(`target ${e.targetReps} reps`);
+      if (e.sets) bits.push(`${e.sets} sets`);
+      if (e.warning) bits.push(`⚠ ${e.warning}`);
+      return bits.join(" — ");
+    })
+    .join("\n");
+}
+
+export function formatProgramContext(program?: ProgramContext): string {
+  if (!program) return "";
+  const parts: string[] = [];
+  if (program.cycle && program.cycle.length) {
+    parts.push(`Program weekly cycle (in order): ${program.cycle.join(" → ")}.`);
+  }
+  if (program.isRest) {
+    parts.push(`Today (${program.dayType}) is a rest day — no exercises planned.`);
+  } else if (program.todayExercises && program.todayExercises.length) {
+    const label = program.isMobility
+      ? "Today's mobility checklist (in order)"
+      : "Today's planned exercises (in program order)";
+    parts.push(`${label}:\n${formatExerciseList(program.todayExercises)}`);
+  }
+  return parts.join("\n");
+}
+
 // A compact, roughly-constant-size summary — one line per exercise that has
 // history — rather than raw per-set data for every session ever logged.
 // This is what keeps the Claude request bounded regardless of how many
@@ -54,20 +95,24 @@ export function buildCoachPrompt(params: {
   trendSummary: string;
   recentMessages: ChatMessage[];
   newMessage: string;
+  program?: ProgramContext;
 }): string {
-  const { phase, weekNum, dayType, isDeload, trendSummary, recentMessages, newMessage } = params;
+  const { phase, weekNum, dayType, isDeload, trendSummary, recentMessages, newMessage, program } = params;
 
   const history = recentMessages
     .map((m) => `${m.role === "user" ? "Lifter" : "Coach"}: ${m.content}`)
     .join("\n");
 
+  const programBlock = formatProgramContext(program);
+
   return [
-    `You are a strength coach for a lifter following a structured long-term program. Act as their personal trainer across the whole program, not just one exercise.`,
+    `You are a strength coach for a lifter following a structured long-term program. Act as their personal trainer across the whole program, not just one exercise. You can see their full schedule and today's exercises in order, so you can advise on exercise sequencing and supersets when relevant.`,
     ``,
     PLAN_RULES,
     ``,
     `Current state: Phase ${phase}, Week ${weekNum}, today's day type: ${dayType}.${isDeload ? " This is a mandatory deload week — do not recommend increasing load." : ""}`,
     ``,
+    programBlock ? `${programBlock}\n` : ``,
     `Recent progress across exercises:`,
     trendSummary,
     ``,
@@ -77,6 +122,33 @@ export function buildCoachPrompt(params: {
     `Lifter: ${newMessage}`,
     ``,
     `Reply conversationally as their coach, in a few sentences. Do not reply with JSON — plain text only.`,
+  ].join("\n");
+}
+
+// Prompt for the dedicated "suggest order / supersets" button. Returns a
+// structured recommendation (via the caller's JSON schema) rather than prose.
+export function buildSequencePrompt(params: {
+  phase: number;
+  weekNum: number;
+  dayType: string;
+  isDeload: boolean;
+  exercises: ProgramExercise[];
+}): string {
+  const { phase, weekNum, dayType, isDeload, exercises } = params;
+
+  return [
+    `You are a strength coach optimizing the exercise order for a lifter's workout today and identifying safe, effective superset pairings.`,
+    ``,
+    PLAN_RULES,
+    ``,
+    `Current state: Phase ${phase}, Week ${weekNum}, today's day type: ${dayType}.${isDeload ? " This is a mandatory deload week — keep intensity conservative." : ""}`,
+    ``,
+    `The exercises currently planned today, in their current order:`,
+    formatExerciseList(exercises),
+    ``,
+    `Recommend the best order to perform these exercises: compound/heaviest and most technical lifts first, isolation work last, managing fatigue and respecting the RPE ceilings above. Then suggest any pairs or small groups that work well as supersets (e.g. non-competing muscle groups, or agonist/antagonist) to save time without compromising the key lifts — or return an empty supersets list if none are advisable today.`,
+    ``,
+    `Use only the exercise names exactly as given. For each exercise in "sequence" give a one-line reason. For each superset, list the exercise names and a one-line reason. "summary" is one or two sentences of overall guidance.`,
   ].join("\n");
 }
 

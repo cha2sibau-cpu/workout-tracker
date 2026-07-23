@@ -4,8 +4,10 @@ import { assertEquals, assertStringIncludes } from "https://deno.land/std@0.224.
 import {
   buildCoachPrompt,
   buildRecommendPrompt,
+  buildSequencePrompt,
   computeTrendSummary,
   exerciseNote,
+  formatProgramContext,
   summarizeLastSameTypeSession,
 } from "./logic.ts";
 
@@ -57,6 +59,50 @@ Deno.test("buildCoachPrompt includes recent conversation, trend summary, and the
   assertStringIncludes(prompt, "I tweaked my shoulder last week");
   assertStringIncludes(prompt, "Prioritize long-term, sustainable progress");
   assertStringIncludes(prompt, "Can I increase weight on rows?");
+});
+
+Deno.test("buildCoachPrompt includes the program schedule and today's ordered exercises", () => {
+  const prompt = buildCoachPrompt({
+    phase: 1, weekNum: 2, dayType: "Push", isDeload: false,
+    trendSummary: "n/a", recentMessages: [], newMessage: "What order should I do today?",
+    program: {
+      cycle: ["Pull", "Mobility A", "Push"],
+      dayType: "Push",
+      todayExercises: [
+        { name: "DB bench press", targetReps: "12", sets: 3 },
+        { name: "Lateral raise", targetReps: "12–15", sets: 3 },
+      ],
+    },
+  });
+  assertStringIncludes(prompt, "Program weekly cycle (in order): Pull → Mobility A → Push");
+  assertStringIncludes(prompt, "Today's planned exercises (in program order):");
+  assertStringIncludes(prompt, "1. DB bench press — target 12 reps — 3 sets");
+  assertStringIncludes(prompt, "2. Lateral raise");
+});
+
+Deno.test("formatProgramContext returns empty string when no program given", () => {
+  assertEquals(formatProgramContext(undefined), "");
+});
+
+Deno.test("formatProgramContext marks a rest day", () => {
+  assertStringIncludes(
+    formatProgramContext({ dayType: "Rest", isRest: true }),
+    "Today (Rest) is a rest day",
+  );
+});
+
+Deno.test("buildSequencePrompt lists exercises in order and asks for supersets", () => {
+  const prompt = buildSequencePrompt({
+    phase: 3, weekNum: 15, dayType: "Push", isDeload: false,
+    exercises: [
+      { name: "DB bench press", targetReps: "12", sets: 4 },
+      { name: "Overhead DB press", targetReps: "10", sets: 4, warning: "RPE cap: 7 always" },
+    ],
+  });
+  assertStringIncludes(prompt, "1. DB bench press — target 12 reps — 4 sets");
+  assertStringIncludes(prompt, "⚠ RPE cap: 7 always");
+  assertStringIncludes(prompt, "superset");
+  assertStringIncludes(prompt, "6-month, 4-phase periodisation program");
 });
 
 Deno.test("exerciseNote reads the per-exercise note", () => {

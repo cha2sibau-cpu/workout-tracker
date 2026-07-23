@@ -5,7 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<title>Workout Tracker</title>
+<meta name="apple-mobile-web-app-title" content="W2K">
+<meta name="theme-color" content="#fafafa">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<title>W2K Workout</title>
 <style>
 :root {
   /* ── Surfaces ── */
@@ -246,6 +252,9 @@ input[type=date].date-input:focus{outline:none;border-color:var(--border-strong)
 .export-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
 .export-sel{flex:1;min-width:0;height:44px;border:1.5px solid var(--border);border-radius:var(--r-sm);padding:0 12px;font-size:14px;background:var(--bg);color:var(--text);font-family:inherit}
 .export-sel:focus{outline:none;border-color:var(--border-strong)}
+.log-select{width:18px;height:18px;flex-shrink:0;cursor:pointer;accent-color:var(--accent)}
+.log-selectall{flex:1;display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-secondary);cursor:pointer}
+.log-selectall input{width:16px;height:16px;accent-color:var(--accent)}
 
 /* ── Print ── */
 @media print{
@@ -262,6 +271,8 @@ input[type=date].date-input:focus{outline:none;border-color:var(--border-strong)
 .login-card input:focus{outline:none;border-color:var(--border-strong)}
 /* Black, not volt — this is a neutral gateway, not a progress moment. */
 .login-card button{width:100%;padding:11px;border:none;border-radius:var(--r-sm);background:var(--surface-invert);color:var(--text-invert);font-size:14px;font-weight:700;font-family:inherit;cursor:pointer}
+.login-card button.login-secondary{background:none;color:var(--text-secondary);font-weight:400;margin-top:8px}
+#login-code{letter-spacing:6px;text-align:center;font-size:20px;font-weight:700}
 #login-status{margin-top:10px;font-size:12px;color:var(--text-secondary)}
 body.authed #login-gate{display:none}
 body:not(.authed) .tab-bar,body:not(.authed) .tab-pane{display:none}
@@ -280,6 +291,19 @@ body:not(.authed) .tab-bar,body:not(.authed) .tab-pane{display:none}
 .coach-send-btn{min-width:64px;border:none;border-radius:var(--r-sm);background:var(--accent);color:var(--accent-ink);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
 .coach-send-btn:disabled{opacity:.4;cursor:default}
 .coach-error{color:var(--danger);font-size:13px;text-align:center;padding:6px 0}
+
+.seq-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px 16px;margin-bottom:8px;font-size:14px}
+.seq-loading{color:var(--text-secondary)}
+.seq-err{color:var(--danger)}
+.seq-summary{line-height:1.5;margin-bottom:8px}
+.seq-h{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-secondary);margin:10px 0 4px}
+.seq-list{margin:0;padding-left:20px}
+.seq-list li{margin:6px 0;line-height:1.4}
+.seq-name{font-weight:600}
+.seq-reason{display:block;font-size:13px;color:var(--text-secondary);margin-top:1px}
+.seq-superset{padding:6px 0;border-top:1px solid var(--border)}
+.seq-superset:first-of-type{border-top:none}
+.seq-foot{margin-top:10px;font-size:12px;color:var(--text-secondary)}
 </style>
 </head>
 <body>
@@ -287,9 +311,18 @@ body:not(.authed) .tab-bar,body:not(.authed) .tab-pane{display:none}
 <div id="login-gate">
   <div class="login-card">
     <h2>Sign in</h2>
-    <p>Enter your email to get a magic link.</p>
-    <input type="email" id="login-email" placeholder="you@example.com">
-    <button onclick="sendMagicLink()">Send magic link</button>
+    <p id="login-desc">Enter your email to get a 6-digit code.</p>
+    <div id="login-step-email">
+      <input type="email" id="login-email" placeholder="you@example.com" autocomplete="email"
+        onkeydown="if(event.key==='Enter')sendCode()">
+      <button onclick="sendCode()">Send code</button>
+    </div>
+    <div id="login-step-code" style="display:none">
+      <input type="text" id="login-code" inputmode="numeric" autocomplete="one-time-code"
+        maxlength="6" placeholder="123456" onkeydown="if(event.key==='Enter')verifyCode()">
+      <button onclick="verifyCode()">Verify &amp; sign in</button>
+      <button class="login-secondary" onclick="resetLogin()">Use a different email</button>
+    </div>
     <div id="login-status"></div>
   </div>
 </div>
@@ -349,6 +382,7 @@ body:not(.authed) .tab-bar,body:not(.authed) .tab-pane{display:none}
 </nav>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 
 <script>
 // ════════════════════════════════════════════════════
@@ -438,16 +472,49 @@ const SUPABASE_URL = 'https://zhucmpzgkujvwlwyjchr.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_WJC-U12gsAvM8rgDiGt3uw_AFnKeBqI';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-async function sendMagicLink() {
+// Email the user is verifying — captured at the "send code" step so the
+// "verify" step can pass it to verifyOtp.
+let loginEmail = '';
+
+async function sendCode() {
   const email = document.getElementById('login-email').value.trim();
   const statusEl = document.getElementById('login-status');
   if (!email) { statusEl.textContent = 'Enter an email.'; return; }
   statusEl.textContent = 'Sending...';
-  const { error } = await sb.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: window.location.href }
-  });
-  statusEl.textContent = error ? `Error: ${error.message}` : 'Check your email for the magic link.';
+  // No emailRedirectTo: given a token-based email template, Supabase then
+  // delivers a 6-digit code instead of a magic link. This matters for the
+  // installed PWA — clicking a link opens the browser, not the app; a code
+  // the user types keeps them inside the PWA.
+  const { error } = await sb.auth.signInWithOtp({ email });
+  if (error) { statusEl.textContent = `Error: ${error.message}`; return; }
+  loginEmail = email;
+  document.getElementById('login-step-email').style.display = 'none';
+  document.getElementById('login-step-code').style.display = '';
+  document.getElementById('login-desc').textContent = `Enter the 6-digit code sent to ${email}.`;
+  statusEl.textContent = '';
+  document.getElementById('login-code').focus();
+}
+
+async function verifyCode() {
+  const token = document.getElementById('login-code').value.trim();
+  const statusEl = document.getElementById('login-status');
+  if (!/^\d{6}$/.test(token)) { statusEl.textContent = 'Enter the 6-digit code from your email.'; return; }
+  statusEl.textContent = 'Verifying...';
+  const { data, error } = await sb.auth.verifyOtp({ email: loginEmail, token, type: 'email' });
+  if (error) { statusEl.textContent = `Error: ${error.message}`; return; }
+  statusEl.textContent = '';
+  // onAuthStateChange (registered in initAuth) also fires on success; the
+  // `authed` class guard keeps onAuthed from running twice.
+  if (data.session && !document.body.classList.contains('authed')) await onAuthed(data.session);
+}
+
+function resetLogin() {
+  loginEmail = '';
+  document.getElementById('login-step-code').style.display = 'none';
+  document.getElementById('login-step-email').style.display = '';
+  document.getElementById('login-desc').textContent = 'Enter your email to get a 6-digit code.';
+  document.getElementById('login-status').textContent = '';
+  document.getElementById('login-code').value = '';
 }
 
 async function signOut() {
@@ -476,6 +543,9 @@ async function onAuthed(session) {
 // ════════════════════════════════════════════════════
 
 let logView = 'list';
+
+// Dates (unique per session) the user has ticked in the Log list for zip export.
+const selectedLogDates = new Set();
 
 // ════════════════════════════════════════════════════
 //  PHASE & EXERCISE HELPERS
@@ -938,6 +1008,9 @@ function renderToday() {
     h += `</div>`;
 
     const dtSafe = dayType.replace(/'/g,"\\'");
+    h += `
+      <button class="btn btn-outline btn-sm" id="seq-btn" style="width:100%;margin-bottom:8px" onclick="suggestSequence('${dtSafe}',${phase},${weekNum})">🔀 Suggest order / supersets</button>
+      <div id="seq-panel"></div>`;
     h += `<button class="btn btn-primary" onclick="markCompleteExercise('${today}','${dtSafe}')">Mark Complete ✓</button>`;
     h += `<div style="height:8px"></div>`;
   }
@@ -1044,6 +1117,63 @@ async function ensureClaudeRecs(today, dayType, phase, weekNum, exercises) {
 function askCoachAboutExercise(exerciseName) {
   goTab('coach');
   sendToCoach(`Should I adjust weight/reps for ${exerciseName} based on my recent performance?`);
+}
+
+// ── Dedicated "Suggest order / supersets" (Today screen) ──
+async function suggestSequence(dayType, phase, weekNum) {
+  const btn = document.getElementById('seq-btn');
+  const panel = document.getElementById('seq-panel');
+  if (!panel) return;
+
+  const program = buildProgramContext(dayType, phase);
+  const exercises = program.todayExercises || [];
+  if (!exercises.length) { panel.innerHTML = `<div class="seq-card">No exercises to sequence today.</div>`; return; }
+
+  if (btn) btn.disabled = true;
+  panel.innerHTML = `<div class="seq-card seq-loading">🤖 Claude is optimizing your order…</div>`;
+
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { panel.innerHTML = `<div class="seq-card">Not signed in.</div>`; return; }
+    const isDeload = phase === 4 && weekNum <= 22;
+    const res = await fetch(SUPABASE_URL + '/functions/v1/suggest-sequence', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify({ phase, weekNum, dayType, isDeload, exercises })
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Request failed');
+    panel.innerHTML = renderSequence(body);
+  } catch (err) {
+    panel.innerHTML = `<div class="seq-card seq-err">Error: ${esc(err.message)}</div>`;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function renderSequence(data) {
+  const seq = Array.isArray(data.sequence) ? data.sequence : [];
+  const supers = Array.isArray(data.supersets) ? data.supersets : [];
+  let h = `<div class="seq-card">`;
+  if (data.summary) h += `<div class="seq-summary">${esc(data.summary)}</div>`;
+  if (seq.length) {
+    h += `<div class="seq-h">Suggested order</div><ol class="seq-list">`;
+    seq.forEach(s => {
+      h += `<li><span class="seq-name">${esc(s.name)}</span>${s.reason ? `<span class="seq-reason">${esc(s.reason)}</span>` : ''}</li>`;
+    });
+    h += `</ol>`;
+  }
+  if (supers.length) {
+    h += `<div class="seq-h">Supersets</div>`;
+    supers.forEach(ss => {
+      const names = Array.isArray(ss.exercises) ? ss.exercises.map(esc).join(' + ') : '';
+      h += `<div class="seq-superset"><span class="seq-name">${names}</span>${ss.reason ? `<span class="seq-reason">${esc(ss.reason)}</span>` : ''}</div>`;
+    });
+  } else {
+    h += `<div class="seq-reason" style="margin-top:6px">No supersets recommended today.</div>`;
+  }
+  h += `<div class="seq-foot">Advisory only — your program isn't changed.</div></div>`;
+  return h;
 }
 
 function buildComingUp(fromDateStr) {
@@ -1267,10 +1397,21 @@ function renderLog() {
   const sessions = getSessions();
   const reversed = sessions.slice().reverse();
 
+  // Drop any ticked dates whose session no longer exists, so the count is accurate.
+  for (const d of [...selectedLogDates]) {
+    if (!sessions.some(s => s.date === d)) selectedLogDates.delete(d);
+  }
+
   const weekOpts = getWeekOptions(sessions);
   const selHtml  = weekOpts.length
     ? weekOpts.map(o => `<option value="${o.value}">${o.label}</option>`).join('')
     : '<option value="">No sessions to export</option>';
+
+  const zipControls = (logView === 'list' && sessions.length) ? `
+    <div class="export-row">
+      <label class="log-selectall"><input type="checkbox" onchange="toggleSelectAllLogs(this.checked)"> Select all</label>
+      <button id="log-zip-btn" class="btn btn-outline btn-sm" style="flex-shrink:0;width:auto;padding:0 18px" onclick="downloadSelectedLogs()" disabled>⬇ Download selected</button>
+    </div>` : '';
 
   let h = `
     <div class="ph"><div class="ph-title">Log</div></div>
@@ -1281,7 +1422,8 @@ function renderLog() {
     <div class="export-row">
       <select id="export-week-sel" class="export-sel">${selHtml}</select>
       <button class="btn btn-outline btn-sm" style="flex-shrink:0;width:auto;padding:0 18px" onclick="exportSelectedWeek()"${!weekOpts.length?' disabled':''}>📤 PDF</button>
-    </div>`;
+    </div>
+    ${zipControls}`;
 
   if (!sessions.length) {
     h += `<div class="empty">
@@ -1303,9 +1445,13 @@ function renderLog() {
       h += `
         <div class="session-card">
           <div class="session-hdr" onclick="toggleSess(${idx})">
-            <div>
-              <div class="session-date">${dateFmt}</div>
-              <div class="session-meta">Completed ${timeFmt}</div>
+            <div style="display:flex;align-items:center;gap:10px;min-width:0">
+              <input type="checkbox" class="log-select" data-date="${sess.date}" ${selectedLogDates.has(sess.date)?'checked':''}
+                onclick="event.stopPropagation()" onchange="toggleLogSelect('${sess.date}', this.checked)">
+              <div>
+                <div class="session-date">${dateFmt}</div>
+                <div class="session-meta">Completed ${timeFmt}</div>
+              </div>
             </div>
             <div class="session-right">
               <span class="badge ${badgeCls}">${sess.dayType}</span>
@@ -1351,6 +1497,7 @@ function renderLog() {
   }
 
   el.innerHTML = h;
+  updateZipBtn();
 }
 
 function toggleSess(idx) {
@@ -1388,16 +1535,8 @@ function exportSelectedWeek() {
   exportWeek(sel.value);
 }
 
-function exportWeek(weekStartStr) {
-  const wkStart = parseLocal(weekStartStr);
-  const wkEnd   = new Date(wkStart);
-  wkEnd.setDate(wkStart.getDate() + 6);
-  const weStr   = localDateStr(wkEnd);
-
-  const sessions = getSessions().filter(s => s.date >= weekStartStr && s.date <= weStr);
-
-  let doc = `<!DOCTYPE html><html><head><title>Workout Log</title>
-  <style>
+// Shared stylesheet for exported/printable workout HTML (week PDF + zip files).
+const EXPORT_STYLE = `
     body{font-family:sans-serif;max-width:720px;margin:40px auto;color:#111}
     h1{font-size:22px;margin-bottom:4px}
     .sub{color:#666;font-size:14px;margin-bottom:24px}
@@ -1409,52 +1548,80 @@ function exportWeek(weekStartStr) {
     td:last-child{text-align:left}
     .no-sessions{color:#666;font-style:italic}
     .mob-item{font-size:13px;margin:4px 0}
-    .carry-weight{color:#007aff;font-weight:600;margin-left:6px}
-  </style></head><body>
+    .carry-weight{color:#007aff;font-weight:600;margin-left:6px}`;
+
+// Renders the heading + exercise tables for one session (no <html> wrapper).
+// Handles both mobility (rounds) and strength sessions, and the legacy
+// per-set r1/r2/r3 format. Reused by the week export and per-session zip.
+function sessionBodyHtml(s) {
+  let html = `<h2>${fmtDate(s.date,{weekday:'long',day:'numeric',month:'long'})} &mdash; ${s.dayType}</h2>`;
+  const hasEx  = s.exercises && s.exercises.length > 0;
+  const isMob  = hasEx && s.exercises[0].rounds !== undefined;
+  const hasReg = hasEx && s.exercises[0].sets;
+  if (isMob) {
+    s.exercises.forEach(ex => {
+      html += `<h3>${ex.name}</h3>`;
+      const isCarry = ex.name === "Farmer's carry";
+      ex.rounds.forEach((done, r) => {
+        const wLabel = isCarry && ex.weights && ex.weights[r]
+          ? `<span class="carry-weight">${ex.weights[r]} kg</span>` : '';
+        html += `<div class="mob-item">${done ? '&#x2705;' : '&#x2B1C;'} Set ${r+1} ${wLabel}</div>`;
+      });
+    });
+  } else if (hasReg) {
+    s.exercises.forEach(ex => {
+      const isNew = ex.sets[0] && ex.sets[0].reps !== undefined;
+      const note = exNote(ex);
+      html += `<h3>${ex.name}</h3>`;
+      if (note) html += `<p class="ex-note">📝 ${esc(note)}</p>`;
+      html += `<table><tr><th>Set</th><th>kg</th><th>Reps</th><th>RPE</th></tr>`;
+      if (isNew) {
+        ex.sets.forEach(st => {
+          html += `<tr><td>${st.set||''}</td><td>${st.kg||'—'}</td><td>${st.reps||'—'}</td><td>${st.rpe||'—'}</td></tr>`;
+        });
+      } else {
+        // Legacy per-set format
+        ex.sets.forEach((st, si) => {
+          [[1,'r1'],[2,'r2'],[3,'r3']].forEach(([n,key]) => {
+            if (st[key]) html += `<tr><td>${n}</td><td>${st.kg||'—'}</td><td>${st[key]||'—'}</td><td>${n===1?st.rpe||'—':'—'}</td></tr>`;
+          });
+        });
+      }
+      html += `</table>`;
+    });
+  } else {
+    html += `<p class="no-sessions">No data recorded.</p>`;
+  }
+  return html;
+}
+
+// A complete standalone HTML document for a single session (one file per zip entry).
+function sessionToHtml(s) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>Workout — ${fmtDate(s.date,{day:'numeric',month:'short',year:'numeric'})} ${s.dayType}</title>
+  <style>${EXPORT_STYLE}</style></head><body>
+  <h1>Workout Log</h1>
+  ${sessionBodyHtml(s)}
+  </body></html>`;
+}
+
+function exportWeek(weekStartStr) {
+  const wkStart = parseLocal(weekStartStr);
+  const wkEnd   = new Date(wkStart);
+  wkEnd.setDate(wkStart.getDate() + 6);
+  const weStr   = localDateStr(wkEnd);
+
+  const sessions = getSessions().filter(s => s.date >= weekStartStr && s.date <= weStr);
+
+  let doc = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Workout Log</title>
+  <style>${EXPORT_STYLE}</style></head><body>
   <h1>Workout Log</h1>
   <div class="sub">${fmtDate(weekStartStr,{day:'numeric',month:'long',year:'numeric'})} &ndash; ${fmtDate(weStr,{day:'numeric',month:'long',year:'numeric'})}</div>`;
 
   if (!sessions.length) {
     doc += `<p class="no-sessions">No sessions logged this week.</p>`;
   } else {
-    sessions.forEach(s => {
-      doc += `<h2>${fmtDate(s.date,{weekday:'long',day:'numeric',month:'long'})} &mdash; ${s.dayType}</h2>`;
-      const hasEx  = s.exercises && s.exercises.length > 0;
-      const isMob  = hasEx && s.exercises[0].rounds !== undefined;
-      const hasReg = hasEx && s.exercises[0].sets;
-      if (isMob) {
-        s.exercises.forEach(ex => {
-          doc += `<h3>${ex.name}</h3>`;
-          const isCarry = ex.name === "Farmer's carry";
-          ex.rounds.forEach((done, r) => {
-            const wLabel = isCarry && ex.weights && ex.weights[r]
-              ? `<span class="carry-weight">${ex.weights[r]} kg</span>` : '';
-            doc += `<div class="mob-item">${done ? '&#x2705;' : '&#x2B1C;'} Set ${r+1} ${wLabel}</div>`;
-          });
-        });
-      } else if (hasReg) {
-        s.exercises.forEach(ex => {
-          const isNew = ex.sets[0] && ex.sets[0].reps !== undefined;
-          const note = exNote(ex);
-          doc += `<h3>${ex.name}</h3>`;
-          if (note) doc += `<p class="ex-note">📝 ${esc(note)}</p>`;
-          doc += `<table><tr><th>Set</th><th>kg</th><th>Reps</th><th>RPE</th></tr>`;
-          if (isNew) {
-            ex.sets.forEach(st => {
-              doc += `<tr><td>${st.set||''}</td><td>${st.kg||'—'}</td><td>${st.reps||'—'}</td><td>${st.rpe||'—'}</td></tr>`;
-            });
-          } else {
-            // Old format
-            ex.sets.forEach((st, si) => {
-              [[1,'r1'],[2,'r2'],[3,'r3']].forEach(([n,key]) => {
-                if (st[key]) doc += `<tr><td>${n}</td><td>${st.kg||'—'}</td><td>${st[key]||'—'}</td><td>${n===1?st.rpe||'—':'—'}</td></tr>`;
-              });
-            });
-          }
-          doc += `</table>`;
-        });
-      }
-    });
+    sessions.forEach(s => { doc += sessionBodyHtml(s); });
   }
 
   doc += `</body></html>`;
@@ -1463,6 +1630,55 @@ function exportWeek(weekStartStr) {
   const url  = URL.createObjectURL(blob);
   const pw   = window.open(url, '_blank');
   if (pw) pw.addEventListener('load', () => { pw.focus(); pw.print(); });
+}
+
+// ── Log selection → zip download ──
+function toggleLogSelect(date, checked) {
+  if (checked) selectedLogDates.add(date); else selectedLogDates.delete(date);
+  updateZipBtn();
+}
+
+function toggleSelectAllLogs(checked) {
+  document.querySelectorAll('#log-inner .log-select').forEach(b => {
+    b.checked = checked;
+    if (checked) selectedLogDates.add(b.dataset.date); else selectedLogDates.delete(b.dataset.date);
+  });
+  updateZipBtn();
+}
+
+function updateZipBtn() {
+  const btn = document.getElementById('log-zip-btn');
+  if (!btn) return;
+  const n = selectedLogDates.size;
+  btn.disabled = n === 0;
+  btn.textContent = n ? `⬇ Download ${n} selected` : '⬇ Download selected';
+}
+
+async function downloadSelectedLogs() {
+  if (!selectedLogDates.size || typeof JSZip === 'undefined') return;
+  const sessions = getSessions().filter(s => selectedLogDates.has(s.date));
+  if (!sessions.length) return;
+
+  const zip = new JSZip();
+  const folder = zip.folder('workout-logs');
+  const used = new Set();
+  sessions.forEach(s => {
+    const base = `${s.date}-${(s.dayType || 'session').replace(/[^a-z0-9]+/gi, '-')}`;
+    let name = base, n = 2;
+    while (used.has(name)) name = `${base}-${n++}`;
+    used.add(name);
+    folder.file(`${name}.html`, sessionToHtml(s));
+  });
+
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `workout-logs-${localDateStr()}.zip`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 function renderWeeklyView(sessions) {
@@ -1852,6 +2068,27 @@ function handleCoachSend() {
   sendToCoach(message);
 }
 
+// Structured program context sent to the coach / sequence functions so Claude
+// can see the schedule and today's exercises in program order.
+function buildProgramContext(dayType, phase) {
+  const wk = WORKOUTS[dayType];
+  const ctx = { cycle: DAY_TYPES, dayType, isMobility: false, isRest: false, todayExercises: [] };
+  if (!wk) return ctx;
+  if (wk.rest) { ctx.isRest = true; return ctx; }
+  if (wk.checklistOnly) {
+    ctx.isMobility = true;
+    ctx.todayExercises = (wk.items || []).map(it => {
+      const p = parseItem(it);
+      return { name: p.name, targetReps: '', sets: p.sets };
+    });
+    return ctx;
+  }
+  ctx.todayExercises = (wk.exercises || []).map(ex => ({
+    name: ex.name, targetReps: ex.reps, sets: getSetsForPhase(ex.name, phase), warning: ex.warning || null
+  }));
+  return ctx;
+}
+
 async function sendToCoach(message) {
   // Elements are re-queried fresh after every `await` below, rather than
   // captured once here, because renderCoach() can rebuild #coach-inner's
@@ -1884,6 +2121,7 @@ async function sendToCoach(message) {
   const weekNum = info ? info.weekNum : 1;
   const dayType = info ? info.dayType : '';
   const isDeload = phase === 4 && weekNum <= 22;
+  const program = buildProgramContext(dayType, phase);
 
   try {
     const res = await fetch(SUPABASE_URL + '/functions/v1/coach', {
@@ -1892,7 +2130,7 @@ async function sendToCoach(message) {
         'content-type': 'application/json',
         'Authorization': 'Bearer ' + session.access_token
       },
-      body: JSON.stringify({ message, phase, weekNum, dayType, isDeload })
+      body: JSON.stringify({ message, phase, weekNum, dayType, isDeload, program })
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error || 'Request failed');
@@ -1916,6 +2154,13 @@ async function sendToCoach(message) {
 // ════════════════════════════════════════════════════
 //  INIT
 // ════════════════════════════════════════════════════
+
+// Register the service worker so the app is installable as a PWA.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW registration failed', err));
+  });
+}
 
 initAuth();
 </script>
