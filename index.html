@@ -721,17 +721,24 @@ function ls(key, val) {
   localStorage.setItem(k, JSON.stringify(val));
 }
 
-const cache = { sessions: [], draft: {}, startDate: null };
+const cache = { sessions: [], draft: {}, startDate: null, pauses: [] };
 
 async function hydrateCache() {
   const { data: sessionRows, error: sessErr } = await sb.from('sessions').select('data').order('date');
   if (sessErr) { alert('Failed to load sessions: ' + sessErr.message); return false; }
   cache.sessions = sessionRows.map(r => r.data);
 
-  const { data: stateRow, error: stateErr } = await sb.from('user_state').select('draft,start_date').maybeSingle();
+  // Select `pauses` too, but tolerate the column not existing yet (migration
+  // 0004 may not have been applied) by falling back to the pre-pauses columns.
+  let stateRow, stateErr;
+  ({ data: stateRow, error: stateErr } = await sb.from('user_state').select('draft,start_date,pauses').maybeSingle());
+  if (stateErr && /pauses/.test(stateErr.message || '')) {
+    ({ data: stateRow, error: stateErr } = await sb.from('user_state').select('draft,start_date').maybeSingle());
+  }
   if (stateErr) { alert('Failed to load app state: ' + stateErr.message); return false; }
   cache.draft = stateRow?.draft || {};
   cache.startDate = stateRow?.start_date || null;
+  cache.pauses = Array.isArray(stateRow?.pauses) ? stateRow.pauses : [];
   return true;
 }
 
@@ -776,6 +783,8 @@ async function saveDraft(v) {
 
 function getStartDate() { return cache.startDate; }
 
+function getPauses() { return cache.pauses || []; }
+
 // ════════════════════════════════════════════════════
 //  DATE / CYCLE HELPERS
 // ════════════════════════════════════════════════════
@@ -796,16 +805,44 @@ function daysBetween(startStr, endStr) {
   return Math.floor((parseLocal(endStr) - parseLocal(startStr)) / 86400000);
 }
 
+// Number of paused calendar days strictly before dateStr, summed across all
+// (non-overlapping) pause intervals. These days are removed from program
+// progression so a break freezes the clock and resumes it afterward.
+function pausedDaysBefore(dateStr) {
+  let total = 0;
+  for (const p of getPauses()) {
+    if (!p || !p.start || !p.end) continue;
+    // Count days d with p.start <= d <= p.end AND d < dateStr.
+    // Exclusive upper bound = min(dateStr, p.end + 1 day).
+    const endExclusive = daysBetween(p.end, dateStr) >= 1 ? addDays(p.end, 1) : dateStr;
+    const overlap = daysBetween(p.start, endExclusive);
+    if (overlap > 0) total += overlap;
+  }
+  return total;
+}
+
+// Is dateStr inside any pause interval (inclusive of both ends)?
+function isPausedOn(dateStr) {
+  return getPauses().some(p =>
+    p && p.start && p.end &&
+    daysBetween(p.start, dateStr) >= 0 && daysBetween(dateStr, p.end) >= 0
+  );
+}
+
+function addDays(dateStr, n) {
+  return localDateStr(new Date(parseLocal(dateStr).getTime() + n * 86400000));
+}
+
 function getCycleInfo(dateStr) {
   const start = getStartDate();
   if (!start) return null;
-  const days = daysBetween(start, dateStr);
+  const days = daysBetween(start, dateStr) - pausedDaysBefore(dateStr);
   if (days < 0) return null;
   const cycleDay  = (days % 7) + 1;
   const weekNum   = Math.floor(days / 7) + 1;
   const phase     = weekNum <= 6 ? 1 : weekNum <= 13 ? 2 : weekNum <= 20 ? 3 : 4;
   const dayType   = DAY_TYPES[cycleDay - 1];
-  return { cycleDay, weekNum, phase, dayType };
+  return { cycleDay, weekNum, phase, dayType, paused: isPausedOn(dateStr) };
 }
 
 function fmtDate(dateStr, opts) {
@@ -857,6 +894,24 @@ function renderToday() {
         <div style="font-size:19px;font-weight:700;margin-bottom:8px">Set your start date</div>
         <div style="font-size:14px;color:var(--text-secondary);margin-bottom:22px">Go to Settings to configure your program start date and unlock your daily workout.</div>
         <button class="btn btn-primary" style="max-width:220px;margin:0 auto" onclick="goTab('settings')">Open Settings</button>
+      </div>`;
+    return;
+  }
+
+  if (info.paused) {
+    const active = getPauses().find(p =>
+      daysBetween(p.start, today) >= 0 && daysBetween(today, p.end) >= 0);
+    const resume = active ? addDays(active.end, 1) : null;
+    el.innerHTML = `
+      <div class="ph"><div class="ph-title">Today</div>
+        <div class="ph-sub" style="margin-top:6px">${fmtDate(today)}</div>
+      </div>
+      <div class="card" style="text-align:center;padding:32px 16px">
+        <div style="font-size:52px;margin-bottom:14px">⏸️</div>
+        <div style="font-size:19px;font-weight:700;margin-bottom:8px">On a break</div>
+        <div style="font-size:14px;color:var(--text-secondary);margin-bottom:8px">Your program is paused — these days won't advance your week or phase.</div>
+        ${resume ? `<div style="font-size:14px;color:var(--text-secondary)">Resumes <strong>${fmtDate(resume)}</strong>.</div>` : ''}
+        <button class="btn btn-outline" style="max-width:220px;margin:22px auto 0" onclick="goTab('settings')">Manage breaks</button>
       </div>`;
     return;
   }
@@ -1935,6 +1990,22 @@ function renderSettings() {
   const today     = localDateStr();
   const info      = startDate ? getCycleInfo(today) : null;
 
+  const pauses    = getPauses();
+  const pausesHtml = pauses.length
+    ? pauses.map((p, i) => {
+        const active = daysBetween(p.start, today) >= 0 && daysBetween(today, p.end) >= 0;
+        const days   = daysBetween(p.start, p.end) + 1;
+        return `
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">${fmtDate(p.start, {day:'numeric', month:'short'})} → ${fmtDate(p.end, {day:'numeric', month:'short', year:'numeric'})}</div>
+          <div class="setting-sub">${days} day${days>1?'s':''} paused${active ? ' · active now' : ''}</div>
+        </div>
+        <button class="btn btn-outline btn-sm" style="width:auto;padding:0 14px" onclick="removePause(${i})">Remove</button>
+      </div>`;
+      }).join('')
+    : `<div class="setting-row"><div class="setting-sub">No breaks scheduled.</div></div>`;
+
   document.getElementById('settings-inner').innerHTML = `
     <div class="ph">
       <div class="ph-title">Settings</div>
@@ -1964,6 +2035,22 @@ function renderSettings() {
       </div>
     </div>
 
+    <div class="sec-label">Breaks</div>
+    <div class="card">
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Pause progress</div>
+          <div class="setting-sub">Traveling or resting? Program stays frozen on these days and resumes after.</div>
+        </div>
+      </div>
+      ${pausesHtml}
+      <div class="setting-row" style="gap:8px;flex-wrap:wrap">
+        <input type="date" class="date-input" id="pauseFrom" placeholder="From">
+        <input type="date" class="date-input" id="pauseTo" placeholder="To">
+        <button class="btn btn-outline btn-sm" style="width:auto;padding:0 16px" onclick="addPause()">Add break</button>
+      </div>
+    </div>
+
     <div class="sec-label">Data</div>
     <div class="card">
       <div class="setting-row">
@@ -1990,6 +2077,42 @@ async function saveStartDate(val) {
   return true;
 }
 
+async function savePauses(v) {
+  cache.pauses = v;
+  renderSettings();
+  const { error } = await sb.from('user_state').upsert({ pauses: v }, { onConflict: 'user_id' });
+  if (error) {
+    console.error('savePauses failed', error);
+    const hint = /pauses/.test(error.message || '')
+      ? '\n\nThe "pauses" column may be missing — apply migration 0004 (supabase db push) or add it in the Supabase SQL editor.'
+      : '';
+    alert('Failed to save breaks: ' + error.message + hint);
+    return false;
+  }
+  return true;
+}
+
+function addPause() {
+  const fromEl = document.getElementById('pauseFrom');
+  const toEl   = document.getElementById('pauseTo');
+  const from = fromEl && fromEl.value;
+  const to   = toEl && toEl.value;
+  if (!from || !to) { alert('Pick both a start and end date for the break.'); return; }
+  if (daysBetween(from, to) < 0) { alert('The end date must be on or after the start date.'); return; }
+  // Reject overlap with any existing break so pausedDaysBefore stays correct.
+  const overlaps = getPauses().some(p =>
+    daysBetween(p.start, to) >= 0 && daysBetween(from, p.end) >= 0);
+  if (overlaps) { alert('That range overlaps an existing break.'); return; }
+  const next = [...getPauses(), { start: from, end: to }]
+    .sort((a, b) => a.start.localeCompare(b.start));
+  savePauses(next);
+}
+
+function removePause(i) {
+  const next = getPauses().filter((_, idx) => idx !== i);
+  savePauses(next);
+}
+
 async function clearAll() {
   if (!confirm('Delete ALL workout data? This cannot be undone.')) return;
   if (!confirm('Final confirmation — permanently clear everything?')) return;
@@ -1999,6 +2122,7 @@ async function clearAll() {
   cache.sessions = [];
   cache.draft = {};
   cache.startDate = null;
+  cache.pauses = [];
   renderSettings();
   alert('All data cleared.');
 }
@@ -2008,6 +2132,7 @@ function exportBackup() {
     sessions: getSessions(),
     draft: getDraft(),
     startDate: getStartDate(),
+    pauses: getPauses(),
     exportedAt: new Date().toISOString()
   };
 
