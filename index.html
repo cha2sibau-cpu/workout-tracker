@@ -311,7 +311,7 @@ body:not(.authed) .tab-bar,body:not(.authed) .tab-pane{display:none}
 <div id="login-gate">
   <div class="login-card">
     <h2>Sign in</h2>
-    <p id="login-desc">Enter your email to get a 6-digit code.</p>
+    <p id="login-desc">Enter your email to get a sign-in code.</p>
     <div id="login-step-email">
       <input type="email" id="login-email" placeholder="you@example.com" autocomplete="email"
         onkeydown="if(event.key==='Enter')sendCode()">
@@ -319,7 +319,7 @@ body:not(.authed) .tab-bar,body:not(.authed) .tab-pane{display:none}
     </div>
     <div id="login-step-code" style="display:none">
       <input type="text" id="login-code" inputmode="numeric" autocomplete="one-time-code"
-        maxlength="6" placeholder="123456" onkeydown="if(event.key==='Enter')verifyCode()">
+        maxlength="10" placeholder="12345678" onkeydown="if(event.key==='Enter')verifyCode()">
       <button onclick="verifyCode()">Verify &amp; sign in</button>
       <button class="login-secondary" onclick="resetLogin()">Use a different email</button>
     </div>
@@ -490,7 +490,7 @@ async function sendCode() {
   loginEmail = email;
   document.getElementById('login-step-email').style.display = 'none';
   document.getElementById('login-step-code').style.display = '';
-  document.getElementById('login-desc').textContent = `Enter the 6-digit code sent to ${email}.`;
+  document.getElementById('login-desc').textContent = `Enter the code sent to ${email}.`;
   statusEl.textContent = '';
   document.getElementById('login-code').focus();
 }
@@ -498,7 +498,7 @@ async function sendCode() {
 async function verifyCode() {
   const token = document.getElementById('login-code').value.trim();
   const statusEl = document.getElementById('login-status');
-  if (!/^\d{6}$/.test(token)) { statusEl.textContent = 'Enter the 6-digit code from your email.'; return; }
+  if (!/^\d{6,10}$/.test(token)) { statusEl.textContent = 'Enter the code from your email.'; return; }
   statusEl.textContent = 'Verifying...';
   const { data, error } = await sb.auth.verifyOtp({ email: loginEmail, token, type: 'email' });
   if (error) { statusEl.textContent = `Error: ${error.message}`; return; }
@@ -512,7 +512,7 @@ function resetLogin() {
   loginEmail = '';
   document.getElementById('login-step-code').style.display = 'none';
   document.getElementById('login-step-email').style.display = '';
-  document.getElementById('login-desc').textContent = 'Enter your email to get a 6-digit code.';
+  document.getElementById('login-desc').textContent = 'Enter your email to get a sign-in code.';
   document.getElementById('login-status').textContent = '';
   document.getElementById('login-code').value = '';
 }
