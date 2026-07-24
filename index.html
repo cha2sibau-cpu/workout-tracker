@@ -303,6 +303,9 @@ body:not(.authed) .tab-bar,body:not(.authed) .tab-pane{display:none}
 .seq-reason{display:block;font-size:13px;color:var(--text-secondary);margin-top:1px}
 .seq-superset{padding:6px 0;border-top:1px solid var(--border)}
 .seq-superset:first-of-type{border-top:none}
+/* Static superset grouping on the Today tab (Pull-Accessories) */
+.superset-wrap{border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--r-sm);padding:2px 12px 6px;margin:14px 0}
+.superset-tag{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-secondary);padding:8px 0 2px}
 .seq-foot{margin-top:10px;font-size:12px;color:var(--text-secondary)}
 </style>
 </head>
@@ -391,7 +394,14 @@ body:not(.authed) .tab-bar,body:not(.authed) .tab-pane{display:none}
 
 const PFX = 'workout_';
 
-const DAY_TYPES = ['Pull','Mobility A','Lower/Core','Mobility B','Push','Rest','Push'];
+// The program ran a 7-day PPL rotation until it switched to an 8-day rotation on
+// ROTATION_SWITCH_DATE. Dates before the switch keep the legacy 7-day cycle so
+// historical schedule mapping and phase labels are never retroactively changed;
+// dates on/after it use the new 8-day cycle, re-anchored so Day 1 (Pull-Compounds)
+// lands on the switch date. See getCycleInfo() for the era-aware logic.
+const ROTATION_SWITCH_DATE = '2026-07-24';
+const DAY_TYPES_LEGACY = ['Pull','Mobility A','Lower/Core','Mobility B','Push','Rest','Push'];
+const DAY_TYPES = ['Pull-Compounds','Mobility A','Lower/Core','Mobility B','Push','Pull-Accessories','Rest','Push'];
 
 const WORKOUTS = {
   Push: {
@@ -424,6 +434,39 @@ const WORKOUTS = {
       { name:'Incline DB curl',                   reps:'8',  warning:null },
       { name:'Reverse fly (bench supported)',     reps:'10', warning:null },
       { name:'Face pulls',                        reps:'15', warning:null }
+    ]
+  },
+  // ── 8-day rotation: the legacy "Pull" day is split into two. Same exercise
+  // schema as everything else ({ name, reps, warning }); set counts stay
+  // phase-derived via getSetsForPhase(). Historical "Pull" sessions are untouched
+  // and still render from their own stored records — see WORKOUTS.Pull above.
+  'Pull-Compounds': {
+    warmup: [
+      'Band pull aparts — 2×15',
+      'Dead hang — 1×20s',
+      'Scapular retraction (wall) — 2×10',
+      'Light DB row — 1×15 @ 40% working weight'
+    ],
+    exercises: [
+      { name:'Lat Pulldown',                      reps:'10–12', warning:'Start at 20 kg. RPE cap: 7.5 always.' },
+      { name:'One-arm DB row (bench supported)',  reps:'10–12', warning:null },
+      { name:'Seal row (chest supported)',        reps:'10',    warning:null }
+    ]
+  },
+  'Pull-Accessories': {
+    warmup: [
+      'Band pull aparts — 2×15',
+      'Light DB curl — 1×15 @ 40% working weight',
+      'Face pulls (light) — 1×15'
+    ],
+    // supersets: index pairs into `exercises` performed back-to-back. Rendered as
+    // a visually grouped block on the Today tab (the app's own superset UI).
+    supersets: [[0, 1], [2, 3]],
+    exercises: [
+      { name:'Hammer curl',                       reps:'10',   warning:null },
+      { name:'Incline DB curl',                   reps:'8',    warning:null },
+      { name:'Reverse fly (bench supported)',     reps:'8–10', warning:null },
+      { name:'Face pulls',                        reps:'15',   warning:null }
     ]
   },
   'Mobility A': {
@@ -838,11 +881,32 @@ function getCycleInfo(dateStr) {
   if (!start) return null;
   const days = daysBetween(start, dateStr) - pausedDaysBefore(dateStr);
   if (days < 0) return null;
-  const cycleDay  = (days % 7) + 1;
-  const weekNum   = Math.floor(days / 7) + 1;
-  const phase     = weekNum <= 6 ? 1 : weekNum <= 13 ? 2 : weekNum <= 20 ? 3 : 4;
-  const dayType   = DAY_TYPES[cycleDay - 1];
-  return { cycleDay, weekNum, phase, dayType, paused: isPausedOn(dateStr) };
+
+  // Program-day index at which the 8-day rotation begins. If the program started
+  // on/after the switch, there is no legacy era and the new cycle anchors at day 0.
+  const rawSwitch  = daysBetween(start, ROTATION_SWITCH_DATE);
+  const switchDays = rawSwitch > 0 ? rawSwitch - pausedDaysBefore(ROTATION_SWITCH_DATE) : 0;
+
+  let cycleDay, weekNum, dayType, cycleLen;
+  if (days < switchDays) {
+    // Legacy 7-day era — identical to the original program, so past schedule
+    // labels and phase numbers are preserved exactly.
+    cycleLen = 7;
+    cycleDay = (days % 7) + 1;
+    weekNum  = Math.floor(days / 7) + 1;
+    dayType  = DAY_TYPES_LEGACY[cycleDay - 1];
+  } else {
+    // New 8-day era, re-anchored so cycleDay 1 (Pull-Compounds) = the switch date.
+    // "Week" now advances per 8-day cycle; the week counter continues from
+    // whatever the legacy era had reached so phase progression stays monotonic.
+    const rel = days - switchDays;
+    cycleLen = 8;
+    cycleDay = (rel % 8) + 1;
+    weekNum  = Math.floor(switchDays / 7) + Math.floor(rel / 8) + 1;
+    dayType  = DAY_TYPES[cycleDay - 1];
+  }
+  const phase = weekNum <= 6 ? 1 : weekNum <= 13 ? 2 : weekNum <= 20 ? 3 : 4;
+  return { cycleDay, weekNum, phase, dayType, cycleLen, paused: isPausedOn(dateStr) };
 }
 
 function fmtDate(dateStr, opts) {
@@ -851,7 +915,7 @@ function fmtDate(dateStr, opts) {
 
 function typeBadgeClass(t) {
   if (t === 'Push')        return 'badge-push';
-  if (t === 'Pull')        return 'badge-pull';
+  if (t.startsWith('Pull')) return 'badge-pull';
   if (t.includes('Mobil')) return 'badge-mob';
   if (t === 'Lower/Core')  return 'badge-lower';
   return 'badge-rest';
@@ -1004,10 +1068,18 @@ function renderToday() {
       h += `</ul></div>`;
     }
 
-    // Exercises — one row per set
+    // Exercises — one row per set. Supersets (index pairs on workout.supersets)
+    // are wrapped in a bracketed block so paired lifts read as "do back-to-back".
     h += `<div class="card"><div class="card-title">Exercises</div>`;
+    const ssStart = {}, ssEnd = {};
+    (workout.supersets || []).forEach(grp => {
+      ssStart[grp[0]] = true;
+      ssEnd[grp[grp.length - 1]] = true;
+    });
     workout.exercises.forEach((ex, ei) => {
-      if (ei > 0) h += `<div class="ex-divider"></div>`;
+      const startsSS = ssStart[ei], endsSS = ssEnd[ei];
+      if (startsSS) h += `<div class="superset-wrap"><div class="superset-tag">🔗 Superset — perform back-to-back</div>`;
+      if (ei > 0 && !startsSS) h += `<div class="ex-divider"></div>`;
 
       const numSets = getSetsForPhase(ex.name, phase);
       const rec = getExerciseRecommendation(ex.name, ex.reps, phase);
@@ -1059,6 +1131,7 @@ function renderToday() {
         <input type="text" class="ex-note-inp" placeholder="Note for this exercise (optional)" value="${esc(exNoteVal)}"
           oninput="upExNote('${today}','${dayType}',${ei},this.value)">
       </div>`;
+      if (endsSS) h += `</div>`; // close .superset-wrap
     });
     h += `</div>`;
 
@@ -1778,27 +1851,33 @@ function renderWeeklyView(sessions) {
       dayDate.setDate(weekStartDate.getDate() + d);
       const dayStr   = localDateStr(dayDate);
       const isFuture = dayStr > today;
-      const dayType  = DAY_TYPES[d];
+      // Compute each day's type from the rotation rather than a fixed weekday
+      // index — the 8-day cycle drifts against the 7-day calendar grid, so
+      // DAY_TYPES[d] would mislabel days. getCycleInfo() also handles the
+      // legacy/new era split for pre-switch dates.
+      const dInfo    = getCycleInfo(dayStr);
+      const dayType  = dInfo ? dInfo.dayType : null;
       const isRest   = dayType === 'Rest';
       const done     = !!sessionMap[dayStr];
 
-      if (!isFuture && !isRest) {
+      if (!isFuture && dayType && !isRest) {
         typeCounts[dayType] = (typeCounts[dayType] || 0) + 1;
         if (done) typeDone[dayType] = (typeDone[dayType] || 0) + 1;
       }
 
-      const badgeCls = typeBadgeClass(dayType);
+      const badgeCls = dayType ? typeBadgeClass(dayType) : 'badge-rest';
       const dayFmt   = parseLocal(dayStr).toLocaleDateString('en-GB', {weekday:'short', day:'numeric'});
 
       let statusHtml;
-      if (isRest)        statusHtml = `<span style="font-size:12px;color:var(--text-secondary)">Rest</span>`;
+      if (!dayType)      statusHtml = `<span style="font-size:12px;color:var(--text-secondary)">—</span>`;
+      else if (isRest)   statusHtml = `<span style="font-size:12px;color:var(--text-secondary)">Rest</span>`;
       else if (isFuture) statusHtml = `<span style="font-size:12px;color:var(--text-secondary)">—</span>`;
       else if (done)     statusHtml = `<span style="font-size:12px;color:var(--text);font-weight:700">✅ Done</span>`;
       else               statusHtml = `<span style="font-size:12px;color:var(--text-secondary);font-weight:600">⬜ Missed</span>`;
 
       const noBorder = d === 6 ? 'border-bottom:none' : 'border-bottom:1px solid var(--border)';
       h += `<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;${noBorder};${isFuture?'opacity:.45':''}">
-        <span class="badge ${badgeCls}" style="min-width:80px;justify-content:center;font-size:12px">${dayType}</span>
+        <span class="badge ${badgeCls}" style="min-width:80px;justify-content:center;font-size:12px">${dayType || '—'}</span>
         <div style="flex:1;font-size:13px;color:var(--text-secondary)">${dayFmt}</div>
         ${statusHtml}
       </div>`;
@@ -1806,8 +1885,9 @@ function renderWeeklyView(sessions) {
     h += `</div>`;
   }
 
-  // Adherence summary
-  const uniqueTypes = [...new Set(DAY_TYPES.filter(t => t !== 'Rest'))];
+  // Adherence summary. Union of new + legacy day types so weeks that ran the old
+  // 7-day "Pull" day still appear alongside the new Pull-Compounds/Accessories.
+  const uniqueTypes = [...new Set([...DAY_TYPES, ...DAY_TYPES_LEGACY].filter(t => t !== 'Rest'))];
   h += `<div class="sec-label">Adherence by Day Type</div>
   <div class="card" style="padding:0;overflow:hidden">
     <table style="width:100%;border-collapse:collapse">
@@ -1840,11 +1920,36 @@ function renderWeeklyView(sessions) {
 // ════════════════════════════════════════════════════
 
 function renderSchedule() {
+  // 8-day rotation overview, generated from the live DAY_TYPES/WORKOUTS so it
+  // always matches what the Today tab actually schedules.
+  const rotationRows = DAY_TYPES.map((t, i) => {
+    const wk = WORKOUTS[t] || {};
+    let detail;
+    if (wk.rest) detail = 'Rest &amp; recovery';
+    else if (wk.checklistOnly) detail = (wk.items || []).map(it => parseItem(it).name).join(', ');
+    else detail = (wk.exercises || []).map(e => e.name).join(', ');
+    return `<div class="pi" style="display:flex;gap:10px;align-items:flex-start">
+      <span class="badge ${typeBadgeClass(t)}" style="flex-shrink:0;min-width:112px;justify-content:center;font-size:11px">Day ${i + 1} · ${t}</span>
+      <span style="flex:1;color:var(--text-secondary);line-height:1.4">${detail || '—'}</span>
+    </div>`;
+  }).join('');
+
+  const rotationHtml = `
+    <div class="phase-card">
+      <div class="phase-hdr">8-Day Rotation</div>
+      <div class="phase-body">
+        <div class="pi">The cycle is 8 days, so day types drift against the calendar week.</div>
+        ${rotationRows}
+      </div>
+    </div>`;
+
   document.getElementById('schedule-inner').innerHTML = `
     <div class="ph">
       <div class="ph-title">Schedule</div>
       <div class="ph-sub">6-Month Periodisation Plan</div>
     </div>
+
+    ${rotationHtml}
 
     <div class="phase-card">
       <div class="phase-hdr ph1-hdr">Phase 1 — Weeks 1–6: Structural Base</div>
@@ -1864,7 +1969,7 @@ function renderSchedule() {
         <div class="pi">Lateral raise → 4×15 &nbsp;|&nbsp; Reverse fly → 4×12</div>
         <div class="pi">RPE target: 8 for main lifts</div>
         <div class="pi pi-warn">⚠ OHP stays RPE 7 &nbsp;|&nbsp; BSS stays RPE 7.5</div>
-        <div class="pi">New: Face pulls 3×15 added to Pull day</div>
+        <div class="pi">New: Face pulls 3×15 added to Pull-Accessories day</div>
         <div class="pi">New: Dead hang 2×20s added to Mobility B</div>
       </div>
     </div>
