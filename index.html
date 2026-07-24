@@ -143,6 +143,9 @@ table.log-tbl{border-collapse:collapse;min-width:420px;width:100%}
 /* ── Per-exercise note input ── */
 .ex-note-inp{width:100%;box-sizing:border-box;margin-top:8px;min-height:40px;border:1.5px solid var(--border);border-radius:var(--r-sm);padding:8px 10px;font-size:13px;text-align:left;background:var(--bg);color:var(--text);font-family:inherit;-webkit-appearance:none;transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
 .ex-note-inp:focus{outline:none;border-color:var(--border-strong);background:var(--card)}
+.total-time-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 10px;font-size:14px;font-weight:600;color:var(--text)}
+.total-time-inp{width:110px;flex-shrink:0;min-height:44px;border:1.5px solid var(--border);border-radius:var(--r-sm);padding:6px 10px;font-size:16px;font-weight:600;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;-webkit-appearance:none}
+.total-time-inp:focus{outline:none;border-color:var(--border-strong);background:var(--card)}
 
 /* ── Farmer carry weight input ── */
 .carry-kg-inp{display:inline-block;width:70px;min-height:36px;border:1.5px solid var(--border);border-radius:var(--r-sm);padding:4px 6px;font-size:14px;font-weight:600;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;margin-left:8px;vertical-align:middle;-webkit-appearance:none}
@@ -1047,8 +1050,9 @@ function renderToday() {
         h += `<div class="carry-hint">Last carry: <strong>${lastCarryKg} kg</strong></div>`;
       }
     });
-    h += `</ul></div>
-      <button class="btn btn-primary" onclick="markCompleteMobility('${today}','${dayType}')">Mark Complete ✓</button>`;
+    h += `</ul></div>`;
+    h += totalTimeFieldHtml(today, dayType, draftDay);
+    h += `<button class="btn btn-primary" onclick="markCompleteMobility('${today}','${dayType}')">Mark Complete ✓</button>`;
 
   } else {
     const draft    = getDraft();
@@ -1139,6 +1143,12 @@ function renderToday() {
     h += `
       <button class="btn btn-outline btn-sm" id="seq-btn" style="width:100%;margin-bottom:8px" onclick="suggestSequence('${dtSafe}',${phase},${weekNum})">🔀 Suggest order / supersets</button>
       <div id="seq-panel"></div>`;
+    // Inline coach card — populated by paintTodayCoach() from draft[dKey].coach.
+    h += `<div class="card" id="today-coach-card" style="display:none">
+      <div class="card-title">🤖 Coach</div>
+      <div class="coach-thread"></div>
+    </div>`;
+    h += totalTimeFieldHtml(today, dayType, draftDay);
     h += `<button class="btn btn-primary" onclick="markCompleteExercise('${today}','${dtSafe}')">Mark Complete ✓</button>`;
     h += `<div style="height:8px"></div>`;
   }
@@ -1148,12 +1158,35 @@ function renderToday() {
 
   el.innerHTML = h;
 
+  // Restore any held coach exchange for today.
+  paintTodayCoach(today + '|' + dayType);
+
   // On weighted-exercise days, ask Claude to generate the recommendations
   // (grounded in the previous same-type session + program). Slots are already
   // showing the local fallback; this swaps in Claude's version when ready.
   if (document.getElementById('rec-slot-0')) {
     ensureClaudeRecs(today, dayType, phase, weekNum, workout.exercises);
   }
+}
+
+// Shared "Total time (min)" field for strength and mobility days. Value is held
+// in the day's draft so it persists and pre-fills, and is read by markComplete().
+function totalTimeFieldHtml(date, dayType, draftDay) {
+  const val = (draftDay && draftDay.totalMin) || '';
+  return `<div class="total-time-row">
+    <label for="total-time-inp">⏱ Total time (min)</label>
+    <input type="number" inputmode="numeric" min="0" id="total-time-inp" class="total-time-inp"
+      placeholder="e.g. 52" value="${esc(val)}"
+      oninput="upTotalTime('${date}','${dayType.replace(/'/g,"\\'")}',this.value)">
+  </div>`;
+}
+
+function upTotalTime(date, dayType, val) {
+  const draft = getDraft();
+  const dKey  = date + '|' + dayType;
+  if (!draft[dKey]) draft[dKey] = {};
+  draft[dKey].totalMin = val;
+  saveDraft(draft);
 }
 
 // ════════════════════════════════════════════════════
@@ -1242,9 +1275,74 @@ async function ensureClaudeRecs(today, dayType, phase, weekNum, exercises) {
   paintRecSlots(dKey, dayType, phase, exercises);
 }
 
+// Transient (non-persisted) state for the Today-page coach card. The messages
+// themselves live in draft[dKey].coach so they survive close/minimize; only the
+// in-flight spinner and the last error are ephemeral.
+let todayCoachPending = false;
+let todayCoachError = '';
+
+// "Ask Claude" on an exercise. Unlike the Coach tab, the reply is shown inline on
+// the Today page and held in the day's draft until Mark Complete clears it.
 function askCoachAboutExercise(exerciseName) {
-  goTab('coach');
-  sendToCoach(`Should I adjust weight/reps for ${exerciseName} based on my recent performance?`);
+  const info = getStartDate() ? getCycleInfo(localDateStr()) : null;
+  const dayType = info ? info.dayType : '';
+  const dKey = localDateStr() + '|' + dayType;
+  sendTodayCoach(dKey, `Should I adjust weight/reps for ${exerciseName} based on my recent performance?`);
+}
+
+// Fills #today-coach-card from draft[dKey].coach plus the transient pending/error
+// state; hides the card when there is nothing to show.
+function paintTodayCoach(dKey) {
+  const card = document.getElementById('today-coach-card');
+  if (!card) return;
+  const entries = (getDraft()[dKey] && getDraft()[dKey].coach) || [];
+  let inner = entries.map(m => `<div class="coach-msg ${m.role}">${esc(m.content)}</div>`).join('');
+  if (todayCoachPending) inner += `<div class="coach-msg assistant pending">Thinking…</div>`;
+  if (todayCoachError)   inner += `<div class="coach-msg assistant" style="color:var(--danger)">⚠ ${esc(todayCoachError)}</div>`;
+  if (!inner) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  card.querySelector('.coach-thread').innerHTML = inner;
+  card.scrollIntoView({ block: 'nearest' });
+}
+
+async function sendTodayCoach(dKey, message) {
+  todayCoachError = '';
+  const draft = getDraft();
+  if (!draft[dKey]) draft[dKey] = {};
+  if (!Array.isArray(draft[dKey].coach)) draft[dKey].coach = [];
+  draft[dKey].coach.push({ role: 'user', content: message });
+  saveDraft(draft);
+  todayCoachPending = true;
+  paintTodayCoach(dKey);
+
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) throw new Error('Not signed in.');
+    const info = getStartDate() ? getCycleInfo(localDateStr()) : null;
+    const phase   = info ? info.phase : 1;
+    const weekNum = info ? info.weekNum : 1;
+    const dayType = info ? info.dayType : '';
+    const isDeload = phase === 4 && weekNum <= 22;
+    const program = buildProgramContext(dayType, phase);
+    const res = await fetch(SUPABASE_URL + '/functions/v1/coach', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify({ message, phase, weekNum, dayType, isDeload, program })
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Request failed');
+    // Re-read the draft — it may have changed while the request was in flight.
+    const d2 = getDraft();
+    if (!d2[dKey]) d2[dKey] = {};
+    if (!Array.isArray(d2[dKey].coach)) d2[dKey].coach = [];
+    d2[dKey].coach.push({ role: 'assistant', content: body.reply });
+    saveDraft(d2);
+  } catch (err) {
+    todayCoachError = err.message;
+  } finally {
+    todayCoachPending = false;
+    paintTodayCoach(dKey);
+  }
 }
 
 // ── Dedicated "Suggest order / supersets" (Today screen) ──
@@ -1469,6 +1567,11 @@ function markComplete(date, dayType, exercises) {
   const idx = sessions.findIndex(s => s.date === date);
   const session = { id: Date.now(), date, dayType, exercises, completedAt: new Date().toISOString() };
 
+  // Total workout time (manual entry), if provided — read before the draft is cleared.
+  const rawMin = (getDraft()[date + '|' + dayType] || {}).totalMin;
+  const durationMin = parseInt(rawMin, 10);
+  if (Number.isFinite(durationMin) && durationMin > 0) session.durationMin = durationMin;
+
   if (idx >= 0) sessions[idx] = session; else sessions.push(session);
   saveSessions(sessions);
 
@@ -1578,7 +1681,7 @@ function renderLog() {
                 onclick="event.stopPropagation()" onchange="toggleLogSelect('${sess.date}', this.checked)">
               <div>
                 <div class="session-date">${dateFmt}</div>
-                <div class="session-meta">Completed ${timeFmt}</div>
+                <div class="session-meta">Completed ${timeFmt}${sess.durationMin ? ` · ⏱ ${sess.durationMin} min` : ''}</div>
               </div>
             </div>
             <div class="session-right">
@@ -1683,6 +1786,7 @@ const EXPORT_STYLE = `
 // per-set r1/r2/r3 format. Reused by the week export and per-session zip.
 function sessionBodyHtml(s) {
   let html = `<h2>${fmtDate(s.date,{weekday:'long',day:'numeric',month:'long'})} &mdash; ${s.dayType}</h2>`;
+  if (s.durationMin) html += `<p class="sub">Total time: ${s.durationMin} min</p>`;
   const hasEx  = s.exercises && s.exercises.length > 0;
   const isMob  = hasEx && s.exercises[0].rounds !== undefined;
   const hasReg = hasEx && s.exercises[0].sets;
