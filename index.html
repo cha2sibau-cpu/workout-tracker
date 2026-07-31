@@ -141,7 +141,7 @@ table.log-tbl{border-collapse:collapse;min-width:420px;width:100%}
 .log-tbl col.c-rpe{width:54px}
 
 /* ── Per-exercise note input ── */
-.ex-note-inp{width:100%;box-sizing:border-box;margin-top:8px;min-height:40px;border:1.5px solid var(--border);border-radius:var(--r-sm);padding:8px 10px;font-size:13px;text-align:left;background:var(--bg);color:var(--text);font-family:inherit;-webkit-appearance:none;transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+.ex-note-inp{width:100%;box-sizing:border-box;margin-top:8px;min-height:58px;border:1.5px solid var(--border);border-radius:var(--r-sm);padding:8px 10px;font-size:14px;line-height:1.5;text-align:left;background:var(--bg);color:var(--text);font-family:inherit;-webkit-appearance:none;resize:vertical;overflow:hidden;white-space:pre-wrap;word-break:break-word;transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
 .ex-note-inp:focus{outline:none;border-color:var(--border-strong);background:var(--card)}
 .total-time-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 10px;font-size:14px;font-weight:600;color:var(--text)}
 .total-time-inp{width:110px;flex-shrink:0;min-height:44px;border:1.5px solid var(--border);border-radius:var(--r-sm);padding:6px 10px;font-size:16px;font-weight:600;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;-webkit-appearance:none}
@@ -309,7 +309,34 @@ body:not(.authed) .tab-bar,body:not(.authed) .tab-pane{display:none}
 /* Static superset grouping on the Today tab (Pull-Accessories) */
 .superset-wrap{border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--r-sm);padding:2px 12px 6px;margin:14px 0}
 .superset-tag{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-secondary);padding:8px 0 2px}
+/* User-applied superset grouping (from Claude's suggestion) — distinct teal frame */
+.superset-applied{border:1px solid #7fd8c8;border-left:3px solid #14b8a6;background:rgba(20,184,166,.06);border-radius:var(--r-sm);padding:2px 12px 6px;margin:14px 0}
+.superset-applied .superset-tag{color:#0f766e}
+.superset-applied-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.btn-ungroup{flex-shrink:0;padding:4px 9px;font-size:11px;font-weight:700;border:1px solid #7fd8c8;color:#0f766e;background:none;border-radius:var(--r-xs);cursor:pointer;font-family:inherit}
 .seq-foot{margin-top:10px;font-size:12px;color:var(--text-secondary)}
+.btn-use-ss{display:block;width:100%;min-height:44px;margin-top:10px;border:none;border-radius:var(--r-sm);background:#14b8a6;color:#fff;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer}
+.btn-use-ss.applied{background:none;border:1px solid #7fd8c8;color:#0f766e}
+
+/* Per-exercise coaching tip */
+.ex-tip{font-size:12px;color:var(--text-secondary);margin-top:4px;line-height:1.45;display:flex;gap:5px;align-items:flex-start}
+.ex-tip::before{content:"🎯";flex-shrink:0}
+
+/* ── Plate calculator tab ── */
+.plate-target-inp{width:100%;min-height:52px;border:1.5px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;font-size:20px;font-weight:700;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;-webkit-appearance:none}
+.plate-handle-inp{width:90px;min-height:40px;border:1.5px solid var(--border);border-radius:var(--r-sm);padding:6px 8px;font-size:15px;font-weight:600;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;-webkit-appearance:none}
+.plate-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.plate-chip{padding:8px 12px;font-size:13px;font-weight:700;border:1.5px solid var(--border-strong);border-radius:var(--r-sm);background:none;color:var(--text);cursor:pointer;font-family:inherit}
+.plate-result{margin-top:16px}
+.plate-dumbbell{display:flex;align-items:center;justify-content:center;gap:2px;margin:14px 0;flex-wrap:wrap}
+.plate-vis{display:inline-block;border-radius:2px;background:var(--surface-invert)}
+.plate-bar{width:44px;height:10px;background:var(--border-strong);border-radius:3px}
+.plate-side-list{font-size:15px;font-weight:700;text-align:center;margin:6px 0}
+.plate-total{font-size:26px;font-weight:800;text-align:center;letter-spacing:-.5px}
+.plate-sub{font-size:13px;color:var(--text-secondary);text-align:center;margin-top:4px;line-height:1.5}
+.plate-warn{color:var(--danger);font-weight:600}
+.plate-inv-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:14px}
+.plate-inv-row:last-child{border-bottom:none}
 </style>
 </head>
 <body>
@@ -347,12 +374,12 @@ body:not(.authed) .tab-bar,body:not(.authed) .tab-pane{display:none}
   <div id="schedule-inner"></div>
 </div>
 
-<div id="tab-progression" class="tab-pane">
-  <div id="progression-inner"></div>
-</div>
-
 <div id="tab-coach" class="tab-pane">
   <div id="coach-inner"></div>
+</div>
+
+<div id="tab-plates" class="tab-pane">
+  <div id="plates-inner"></div>
 </div>
 
 <div id="tab-settings" class="tab-pane">
@@ -371,15 +398,15 @@ body:not(.authed) .tab-bar,body:not(.authed) .tab-pane{display:none}
   </button>
   <button class="tab-btn" id="tbtn-schedule" onclick="goTab('schedule')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-    Schedule
-  </button>
-  <button class="tab-btn" id="tbtn-progression" onclick="goTab('progression')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-    Progression
+    Program
   </button>
   <button class="tab-btn" id="tbtn-coach" onclick="goTab('coach')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
     Coach
+  </button>
+  <button class="tab-btn" id="tbtn-plates" onclick="goTab('plates')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="1.5" y="8" width="3" height="8" rx="1"/><rect x="19.5" y="8" width="3" height="8" rx="1"/><rect x="5" y="5.5" width="3" height="13" rx="1"/><rect x="16" y="5.5" width="3" height="13" rx="1"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    Plates
   </button>
   <button class="tab-btn" id="tbtn-settings" onclick="goTab('settings')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -509,6 +536,30 @@ const WORKOUTS = {
   },
   Rest: { rest: true }
 };
+
+// Short "what to concentrate on" cues, keyed by exercise name. Kept central
+// (not inline per WORKOUTS entry) so exercises that appear on multiple days
+// share one definition. Rendered under the target-reps line on the Today tab.
+const EXERCISE_TIPS = {
+  'DB bench press':                    'Target: mid-chest. Squeeze the pecs to press — keep shoulder blades pinned back and down, elbows ~45°.',
+  'Incline DB bench press':            'Target: upper chest. Feel the stretch across the collarbones; drive the dumbbells up and slightly together.',
+  'Overhead DB press':                 'Target: front/side delts. Brace your core, no back arch. Press up, not forward. RPE cap 7.',
+  'Lateral raise':                     'Target: side delts. Lead with the elbows, pour-the-jug tilt. Light weight, slow — no swinging or shrugging.',
+  'Overhead triceps extension':        'Target: long head of triceps. Keep elbows tucked in and pointed up; only the forearms move.',
+  'Lat Pulldown':                      'Target: lats. Drive elbows down toward your hips, chest tall. Feel the back, not the biceps. RPE cap 7.5.',
+  'One-arm DB row (bench supported)':  'Target: mid-back/lat. Pull the elbow to your hip, squeeze at the top. No torso twist.',
+  'Seal row (chest supported)':        'Target: mid-back/rhomboids. Chest stays glued to the bench; retract the shoulder blades hard at the top.',
+  'Hammer curl':                       'Target: biceps + brachialis/forearm. Neutral grip, elbows pinned to your sides. No swinging.',
+  'Incline DB curl':                   'Target: biceps long head (stretch). Let arms hang back on the incline; curl without moving the elbows.',
+  'Reverse fly (bench supported)':     'Target: rear delts. Think "spread the arms wide", soft elbows. Squeeze the shoulder blades, not the traps.',
+  'Face pulls':                        'Target: rear delts + rotator cuff. Pull rope to your forehead, thumbs back. High elbows, slow control.',
+  'Bulgarian split squat':            'Target: quads + glutes. Torso tall, weight through the front heel. Knee tracks over toes — stop if it caves in. RPE cap 7.5.',
+  'Romanian deadlift':                 'Target: hamstrings + glutes. Hinge at the hips, soft knees, flat back. Feel the hamstring stretch; drive hips forward.',
+  'Goblet squat':                      'Target: quads + glutes. Elbows inside the knees, chest up, sit between the hips. Full depth if mobility allows.',
+  'Weighted Russian twist':            'Target: obliques. Rotate from the ribcage, not just the arms. Controlled — pause each side.',
+  'Dead bugs':                         'Target: deep core (anti-extension). Press your low back into the floor the whole time; move slow, breathe out on extension.'
+};
+function getExerciseTip(name) { return EXERCISE_TIPS[name] || ''; }
 
 // ════════════════════════════════════════════════════
 //  SUPABASE CLIENT & AUTH
@@ -928,7 +979,7 @@ function typeBadgeClass(t) {
 //  TAB SWITCHING
 // ════════════════════════════════════════════════════
 
-const TABS = ['today','log','schedule','progression','coach','settings'];
+const TABS = ['today','log','schedule','coach','plates','settings'];
 
 function goTab(tab) {
   TABS.forEach(t => {
@@ -941,7 +992,7 @@ function goTab(tab) {
 
 function renderTab(tab) {
   ({ today:renderToday, log:renderLog, schedule:renderSchedule,
-     progression:renderProgression, coach:renderCoach, settings:renderSettings })[tab]();
+     coach:renderCoach, plates:renderPlates, settings:renderSettings })[tab]();
 }
 
 // ════════════════════════════════════════════════════
@@ -1072,39 +1123,35 @@ function renderToday() {
       h += `</ul></div>`;
     }
 
-    // Exercises — one row per set. Supersets (index pairs on workout.supersets)
-    // are wrapped in a bracketed block so paired lifts read as "do back-to-back".
+    // Exercises. Grouping source: the user's applied supersets (chosen from
+    // Claude's suggestion) if present, otherwise the workout's static supersets.
+    // Applied groups pull their members adjacent and render in a distinct teal
+    // frame. Every id/handler stays bound to each exercise's ORIGINAL index, so
+    // display reordering never desyncs the draft, rec slots or inputs.
     h += `<div class="card"><div class="card-title">Exercises</div>`;
-    const ssStart = {}, ssEnd = {};
-    (workout.supersets || []).forEach(grp => {
-      ssStart[grp[0]] = true;
-      ssEnd[grp[grp.length - 1]] = true;
-    });
-    workout.exercises.forEach((ex, ei) => {
-      const startsSS = ssStart[ei], endsSS = ssEnd[ei];
-      if (startsSS) h += `<div class="superset-wrap"><div class="superset-tag">🔗 Superset — perform back-to-back</div>`;
-      if (ei > 0 && !startsSS) h += `<div class="ex-divider"></div>`;
+    const dtSafe = dayType.replace(/'/g,"\\'");
+    const applied = Array.isArray(draftDay.appliedSupersets) && draftDay.appliedSupersets.length
+      ? draftDay.appliedSupersets : null;
+    const groups  = applied || (workout.supersets || []);
+    const groupOf = {};
+    groups.forEach(g => g.forEach(idx => { groupOf[idx] = g; }));
 
-      const numSets = getSetsForPhase(ex.name, phase);
-      const rec = getExerciseRecommendation(ex.name, ex.reps, phase);
+    // Full block for one exercise, keyed by its original index `ei`.
+    function renderEx(ex, ei) {
+      const numSets  = getSetsForPhase(ex.name, phase);
+      const rec      = getExerciseRecommendation(ex.name, ex.reps, phase);
+      const claudeR  = claudeRecFor(dKey, ex.name);
       const prevNote = getPreviousNote(ex.name);
-
-      // Recommendation display — Claude's recommendation once loaded, with the
-      // local heuristic as an instant fallback. The slot id lets the async
-      // fetch swap in Claude's version without re-rendering the whole screen.
-      const dKey = today + '|' + dayType;
-      const recHtml = `<div class="rec-slot" id="rec-slot-${ei}">${recBadgeHtml(rec, claudeRecFor(dKey, ex.name), claudeRecsLoading(dKey))}</div>`;
-
-      // Previous session note
-      let noteHtml = '';
-      if (prevNote) {
-        noteHtml = `<div class="prev-note">📝 Last session: "${esc(prevNote)}"</div>`;
-      }
-
-      h += `<div class="ex-block">
+      const tip      = getExerciseTip(ex.name);
+      // Recommendation display — Claude's rec once loaded, local heuristic as an
+      // instant fallback. The slot id lets the async fetch swap it in-place.
+      const recHtml  = `<div class="rec-slot" id="rec-slot-${ei}">${recBadgeHtml(rec, claudeR, claudeRecsLoading(dKey))}</div>`;
+      const noteHtml = prevNote ? `<div class="prev-note">📝 Last session: "${esc(prevNote)}"</div>` : '';
+      let b = `<div class="ex-block">
         <div class="ex-header">
           <div class="ex-name">${ex.name}</div>
           <div class="ex-target">Target: ${ex.reps} reps</div>
+          ${tip ? `<div class="ex-tip">${esc(tip)}</div>` : ''}
           ${ex.warning ? `<div class="warn-label">⚠ ${ex.warning}</div>` : ''}
           ${recHtml}${noteHtml}
           <button class="btn-ask-claude" onclick="askCoachAboutExercise('${ex.name.replace(/'/g, "\\'")}')">🤖 Ask Claude</button>
@@ -1113,15 +1160,14 @@ function renderToday() {
           <colgroup><col class="c-set"><col class="c-kg"><col class="c-reps"><col class="c-rpe"></colgroup>
           <thead><tr><th>Set</th><th>kg</th><th>Reps</th><th>RPE</th></tr></thead>
           <tbody>`;
-
       const baseRep = ex.reps.split('–')[0];
-      const kgPlaceholder = rec && rec.kg > 0 ? String(rec.kg) : 'kg';
+      // Placeholder prefers Claude's recommended kg, then the local heuristic.
+      const kgPh = kgPlaceholderFor(rec, claudeR);
       for (let s = 1; s <= numSets; s++) {
-        const sk = ei + '_' + s;
-        const sd = draftDay[sk] || {};
-        h += `<tr>
+        const sd = draftDay[ei + '_' + s] || {};
+        b += `<tr>
           <td>${s}</td>
-          <td><input type="text" inputmode="decimal" placeholder="${kgPlaceholder}" value="${esc(sd.kg||'')}"
+          <td><input id="kg-inp-${ei}-${s}" type="text" inputmode="decimal" placeholder="${kgPh}" value="${esc(sd.kg||'')}"
             oninput="upDraft('${today}','${dayType}',${ei},${s},'kg',this.value.replace(',','.'))"></td>
           <td><input type="number" inputmode="numeric" placeholder="${baseRep}" value="${esc(sd.reps||'')}"
             oninput="upDraft('${today}','${dayType}',${ei},${s},'reps',this.value)"></td>
@@ -1129,17 +1175,47 @@ function renderToday() {
             oninput="upDraft('${today}','${dayType}',${ei},${s},'rpe',this.value.replace(',','.'))"></td>
         </tr>`;
       }
-      // One note per exercise (not per set).
       const exNoteVal = draftDay[ei + '_note'] || '';
-      h += `</tbody></table></div>
-        <input type="text" class="ex-note-inp" placeholder="Note for this exercise (optional)" value="${esc(exNoteVal)}"
-          oninput="upExNote('${today}','${dayType}',${ei},this.value)">
+      b += `</tbody></table></div>
+        <textarea class="ex-note-inp" rows="2" placeholder="Note for this exercise (optional)"
+          oninput="upExNote('${today}','${dayType}',${ei},this.value);autoGrow(this)">${esc(exNoteVal)}</textarea>
       </div>`;
-      if (endsSS) h += `</div>`; // close .superset-wrap
+      return b;
+    }
+
+    const emitted = {};
+    let firstRow = true;
+    workout.exercises.forEach((ex, ei) => {
+      if (emitted[ei]) return;
+      const g = groupOf[ei];
+      if (g && g[0] === ei) {
+        // Group leader — emit the whole group adjacent, inside one frame.
+        if (applied) {
+          h += `<div class="superset-applied"><div class="superset-applied-head">`
+            + `<div class="superset-tag">🔗 Superset — perform back-to-back</div>`
+            + `<button class="btn-ungroup" onclick="ungroupSupersets('${today}','${dtSafe}')">Ungroup</button></div>`;
+        } else {
+          h += `<div class="superset-wrap"><div class="superset-tag">🔗 Superset — perform back-to-back</div>`;
+        }
+        g.forEach((gi, k) => {
+          if (gi < 0 || gi >= workout.exercises.length) return;
+          if (k > 0) h += `<div class="ex-divider"></div>`;
+          h += renderEx(workout.exercises[gi], gi);
+          emitted[gi] = true;
+        });
+        h += `</div>`;
+        firstRow = false;
+      } else if (g) {
+        // Member whose leader hasn't been reached yet — emit with the leader.
+        return;
+      } else {
+        if (!firstRow) h += `<div class="ex-divider"></div>`;
+        h += renderEx(ex, ei);
+        firstRow = false;
+      }
     });
     h += `</div>`;
 
-    const dtSafe = dayType.replace(/'/g,"\\'");
     h += `
       <button class="btn btn-outline btn-sm" id="seq-btn" style="width:100%;margin-bottom:8px" onclick="suggestSequence('${dtSafe}',${phase},${weekNum})">🔀 Suggest order / supersets</button>
       <div id="seq-panel"></div>`;
@@ -1158,8 +1234,15 @@ function renderToday() {
 
   el.innerHTML = h;
 
+  // Size note textareas to fit any pre-filled content.
+  el.querySelectorAll('.ex-note-inp').forEach(autoGrow);
+
   // Restore any held coach exchange for today.
   paintTodayCoach(today + '|' + dayType);
+
+  // Restore any held order/superset suggestion for today (survives tab switches;
+  // cleared only on Mark Complete).
+  if (info && !workout.rest && !workout.checklistOnly) paintSeqPanel(today + '|' + dayType);
 
   // On weighted-exercise days, ask Claude to generate the recommendations
   // (grounded in the previous same-type session + program). Slots are already
@@ -1225,8 +1308,24 @@ function recBadgeHtml(localRec, claudeRec, loading) {
   return base;
 }
 
+// The kg-input placeholder to show: Claude's recommended weight when available,
+// otherwise the local heuristic, otherwise a plain "kg" hint.
+function kgPlaceholderFor(localRec, claudeRec) {
+  if (claudeRec && claudeRec.kg > 0) return String(claudeRec.kg);
+  if (localRec && localRec.kg > 0) return String(localRec.kg);
+  return 'kg';
+}
+
+// Grow a note textarea to fit its content (no inner scrollbar).
+function autoGrow(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = Math.max(el.scrollHeight, 58) + 'px';
+}
+
 // Update only the rec slots in place, so an in-progress set/rep input doesn't
-// lose focus from a full re-render.
+// lose focus from a full re-render. Also refreshes the kg-input placeholders so
+// the weight shown in the field matches Claude's recommendation once it loads.
 function paintRecSlots(dKey, dayType, phase, exercises) {
   if (localDateStr() + '|' + dayType !== dKey) return; // day rolled over
   const loading = claudeRecsLoading(dKey);
@@ -1234,7 +1333,16 @@ function paintRecSlots(dKey, dayType, phase, exercises) {
     const slot = document.getElementById('rec-slot-' + ei);
     if (!slot) return; // user navigated away or day type changed
     const localRec = getExerciseRecommendation(ex.name, ex.reps, phase);
-    slot.innerHTML = recBadgeHtml(localRec, claudeRecFor(dKey, ex.name), loading);
+    const claudeR  = claudeRecFor(dKey, ex.name);
+    slot.innerHTML = recBadgeHtml(localRec, claudeR, loading);
+    // Only overwrite the placeholder for sets the user hasn't typed a weight
+    // into — the value attribute is untouched, so nothing they entered is lost.
+    const ph = kgPlaceholderFor(localRec, claudeR);
+    const numSets = getSetsForPhase(ex.name, phase);
+    for (let s = 1; s <= numSets; s++) {
+      const inp = document.getElementById('kg-inp-' + ei + '-' + s);
+      if (inp) inp.placeholder = ph;
+    }
   });
 }
 
@@ -1346,10 +1454,13 @@ async function sendTodayCoach(dKey, message) {
 }
 
 // ── Dedicated "Suggest order / supersets" (Today screen) ──
+// The suggestion is held in draft[dKey].seq so it survives tab switches and app
+// minimise; it is cleared only when the session is marked complete.
 async function suggestSequence(dayType, phase, weekNum) {
   const btn = document.getElementById('seq-btn');
   const panel = document.getElementById('seq-panel');
   if (!panel) return;
+  const dKey = localDateStr() + '|' + dayType;
 
   const program = buildProgramContext(dayType, phase);
   const exercises = program.todayExercises || [];
@@ -1369,7 +1480,11 @@ async function suggestSequence(dayType, phase, weekNum) {
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error || 'Request failed');
-    panel.innerHTML = renderSequence(body);
+    const draft = getDraft();
+    if (!draft[dKey]) draft[dKey] = {};
+    draft[dKey].seq = body;
+    saveDraft(draft);
+    paintSeqPanel(dKey);
   } catch (err) {
     panel.innerHTML = `<div class="seq-card seq-err">Error: ${esc(err.message)}</div>`;
   } finally {
@@ -1377,9 +1492,19 @@ async function suggestSequence(dayType, phase, weekNum) {
   }
 }
 
-function renderSequence(data) {
+// Repaint #seq-panel from the held suggestion (if any).
+function paintSeqPanel(dKey) {
+  const panel = document.getElementById('seq-panel');
+  if (!panel) return;
+  const data = (getDraft()[dKey] && getDraft()[dKey].seq) || null;
+  panel.innerHTML = data ? renderSequence(data, dKey) : '';
+}
+
+function renderSequence(data, dKey) {
   const seq = Array.isArray(data.sequence) ? data.sequence : [];
   const supers = Array.isArray(data.supersets) ? data.supersets : [];
+  const applied = !!(getDraft()[dKey] && Array.isArray(getDraft()[dKey].appliedSupersets)
+    && getDraft()[dKey].appliedSupersets.length);
   let h = `<div class="seq-card">`;
   if (data.summary) h += `<div class="seq-summary">${esc(data.summary)}</div>`;
   if (seq.length) {
@@ -1395,11 +1520,70 @@ function renderSequence(data) {
       const names = Array.isArray(ss.exercises) ? ss.exercises.map(esc).join(' + ') : '';
       h += `<div class="seq-superset"><span class="seq-name">${names}</span>${ss.reason ? `<span class="seq-reason">${esc(ss.reason)}</span>` : ''}</div>`;
     });
+    const dKeyJs = dKey.replace(/'/g, "\\'");
+    if (applied) {
+      h += `<button class="btn-use-ss applied" onclick="ungroupSupersets2('${dKeyJs}')">✓ Supersets applied — tap to ungroup</button>`;
+    } else {
+      h += `<button class="btn-use-ss" onclick="applySupersets('${dKeyJs}')">Use these supersets ✓</button>`;
+    }
   } else {
     h += `<div class="seq-reason" style="margin-top:6px">No supersets recommended today.</div>`;
   }
   h += `<div class="seq-foot">Advisory only — your program isn't changed.</div></div>`;
   return h;
+}
+
+// Match a Claude-suggested exercise name to its index in the current workout.
+function findExerciseIndex(exercises, name) {
+  const norm = s => String(s || '').trim().toLowerCase();
+  const n = norm(name);
+  return exercises.findIndex(e => norm(e.name) === n);
+}
+
+// Apply the suggested supersets: convert each suggested pair (exercise names) to
+// original indices in today's workout and store them so renderToday groups and
+// reorders those exercises into a distinct frame.
+function applySupersets(dKey) {
+  const parts   = dKey.split('|');
+  const date    = parts[0], dayType = parts.slice(1).join('|');
+  const draft   = getDraft();
+  const data    = draft[dKey] && draft[dKey].seq;
+  if (!data || !Array.isArray(data.supersets)) return;
+  const info    = getCycleInfo(date);
+  const phase   = info ? info.phase : 1;
+  const workout = getPhaseExercises(dayType, phase);
+  if (!workout || !workout.exercises) return;
+
+  const seen = {};
+  const groups = [];
+  data.supersets.forEach(ss => {
+    const names = Array.isArray(ss.exercises) ? ss.exercises : [];
+    const idxs = [];
+    names.forEach(nm => {
+      const i = findExerciseIndex(workout.exercises, nm);
+      if (i >= 0 && !seen[i]) { idxs.push(i); seen[i] = true; }
+    });
+    if (idxs.length >= 2) groups.push(idxs);
+  });
+  if (!groups.length) { alert('Could not match the suggested supersets to today\'s exercises.'); return; }
+
+  if (!draft[dKey]) draft[dKey] = {};
+  draft[dKey].appliedSupersets = groups;
+  saveDraft(draft);
+  renderToday();
+}
+
+// Remove the applied grouping (from the Ungroup button on the frame).
+function ungroupSupersets(date, dayType) {
+  const dKey  = date + '|' + dayType;
+  const draft = getDraft();
+  if (draft[dKey]) { delete draft[dKey].appliedSupersets; saveDraft(draft); }
+  renderToday();
+}
+// Same, but from the suggestion panel where only dKey is in scope.
+function ungroupSupersets2(dKey) {
+  const parts = dKey.split('|');
+  ungroupSupersets(parts[0], parts.slice(1).join('|'));
 }
 
 function buildComingUp(fromDateStr) {
@@ -2049,8 +2233,8 @@ function renderSchedule() {
 
   document.getElementById('schedule-inner').innerHTML = `
     <div class="ph">
-      <div class="ph-title">Schedule</div>
-      <div class="ph-sub">6-Month Periodisation Plan</div>
+      <div class="ph-title">Program</div>
+      <div class="ph-sub">Rotation · 6-month periodisation · progression</div>
     </div>
 
     ${rotationHtml}
@@ -2112,14 +2296,18 @@ function renderSchedule() {
           <tr><td class="rpe-red">10</td><td>True failure</td><td class="rpe-red">Never</td></tr>
         </tbody>
       </table>
-    </div>`;
+    </div>
+
+    ${progressionSectionsHtml()}`;
 }
 
 // ════════════════════════════════════════════════════
 //  PROGRESSION TAB
 // ════════════════════════════════════════════════════
 
-function renderProgression() {
+// Returns the Progression sections (overload rules, targets, carry history, DNA
+// flags) as an HTML string. Merged into the Program tab beneath the schedule.
+function progressionSectionsHtml() {
   // Build farmer's carry history
   const sessions = getSessions();
   let carryRows = '';
@@ -2142,12 +2330,7 @@ function renderProgression() {
       </table>
     </div>` : '';
 
-  document.getElementById('progression-inner').innerHTML = `
-    <div class="ph">
-      <div class="ph-title">Progression</div>
-      <div class="ph-sub">Overload rules, targets & DNA flags</div>
-    </div>
-
+  return `
     <div class="sec-label">Overload Rules</div>
     <div class="card">
       <div class="rule-row"><strong>Method:</strong> Reps first, then weight. Hit top of rep range → add weight next session.</div>
@@ -2188,6 +2371,190 @@ function renderProgression() {
       <div class="dna-item">Poor lactate threshold → Zone 2 walking only for cardio; no HIIT</div>
       <div class="dna-item">Excellent heart capacity + carb response → rice-based carbs respond well; prioritise carbs pre-compounds</div>
     </div>`;
+}
+
+// ════════════════════════════════════════════════════
+//  PLATE CALCULATOR TAB
+// ════════════════════════════════════════════════════
+// Adjustable-dumbbell loader. The user owns (total, shared across BOTH bells):
+// 8×1.25, 8×1.5, 8×2, 4×2.5 kg. Loading is symmetric, so each SIDE of one
+// dumbbell can draw from half-of-half the inventory, capped at 4 plates/side:
+//   per side → 2×1.25, 2×1.5, 2×2, 1×2.5.
+// Given a target for ONE dumbbell we find the closest achievable per-side combo.
+const PLATE_INVENTORY_PER_SIDE = [
+  { w: 2.5,  n: 1 },
+  { w: 2,    n: 2 },
+  { w: 1.5,  n: 2 },
+  { w: 1.25, n: 2 }
+];
+const MAX_PLATES_PER_SIDE = 4;
+
+// Persisted-in-memory calculator state (survives tab switches within a session).
+// Handle default matches the user's ~250 g plastic handles; still editable in-tab.
+const plateCalc = { target: '', handle: 0.25 };
+
+// Brute-force the closest per-side plate combination to `perSideTarget` kg.
+// Returns { plates:[w...], sum, count }. Ties break toward fewer plates.
+function solvePlates(perSideTarget) {
+  const inv = PLATE_INVENTORY_PER_SIDE;
+  let best = { plates: [], sum: 0, count: 0 };
+  let bestDiff = Math.abs(0 - perSideTarget);
+  for (let a = 0; a <= inv[0].n; a++)
+  for (let b = 0; b <= inv[1].n; b++)
+  for (let c = 0; c <= inv[2].n; c++)
+  for (let d = 0; d <= inv[3].n; d++) {
+    const count = a + b + c + d;
+    if (count > MAX_PLATES_PER_SIDE) continue;
+    const sum = a*inv[0].w + b*inv[1].w + c*inv[2].w + d*inv[3].w;
+    const diff = Math.abs(sum - perSideTarget);
+    if (diff < bestDiff - 1e-9 || (Math.abs(diff - bestDiff) < 1e-9 && count < best.count)) {
+      bestDiff = diff;
+      const plates = [];
+      for (let i = 0; i < a; i++) plates.push(inv[0].w);
+      for (let i = 0; i < b; i++) plates.push(inv[1].w);
+      for (let i = 0; i < c; i++) plates.push(inv[2].w);
+      for (let i = 0; i < d; i++) plates.push(inv[3].w);
+      best = { plates, sum, count };
+    }
+  }
+  return best;
+}
+
+function fmtKg(n) { return (Math.round(n * 100) / 100).toString().replace(/\.00$/, '').replace(/(\.\d)0$/, '$1'); }
+
+// The min / max dumbbell weight reachable with this handle.
+function plateRange(handle) {
+  const max = solvePlates(999); // saturates to the heaviest 4-plate combo
+  return { min: handle, max: handle + 2 * max.sum };
+}
+
+// Recommended weights for today's exercises, for the quick-fill chips.
+function plateChipsForToday() {
+  const info = getStartDate() ? getCycleInfo(localDateStr()) : null;
+  if (!info) return [];
+  const workout = getPhaseExercises(info.dayType, info.phase);
+  if (!workout || !workout.exercises) return [];
+  const dKey = localDateStr() + '|' + info.dayType;
+  const chips = [];
+  workout.exercises.forEach(ex => {
+    const claudeR = claudeRecFor(dKey, ex.name);
+    const local   = getExerciseRecommendation(ex.name, ex.reps, info.phase);
+    const kg = (claudeR && claudeR.kg > 0) ? claudeR.kg : (local && local.kg > 0 ? local.kg : 0);
+    if (kg > 0) chips.push({ name: ex.name, kg });
+  });
+  return chips;
+}
+
+function renderPlates() {
+  const el = document.getElementById('plates-inner');
+  const chips = plateChipsForToday();
+  const chipHtml = chips.length
+    ? `<div class="setting-label" style="margin-top:14px">Quick-fill from today</div>
+       <div class="plate-chips">` +
+       chips.map(c => `<button class="plate-chip" onclick="setPlateTarget(${c.kg})">${esc(c.name)} · ${fmtKg(c.kg)}</button>`).join('') +
+       `</div>`
+    : '';
+
+  el.innerHTML = `
+    <div class="ph"><div class="ph-title">Plates</div></div>
+
+    <div class="card">
+      <div class="card-title">Target — one dumbbell</div>
+      <input id="plate-target" class="plate-target-inp" type="text" inputmode="decimal"
+        placeholder="e.g. 12" value="${esc(String(plateCalc.target))}"
+        oninput="updatePlateCalc()">
+      <div class="total-time-row" style="margin-top:14px">
+        <label for="plate-handle">Empty handle weight (kg)</label>
+        <input id="plate-handle" class="plate-handle-inp" type="text" inputmode="decimal"
+          value="${esc(String(plateCalc.handle))}" oninput="updatePlateCalc()">
+      </div>
+      ${chipHtml}
+    </div>
+
+    <div id="plate-result" class="plate-result"></div>
+
+    <div class="card">
+      <div class="card-title">Your plates (total owned)</div>
+      <div class="plate-inv-row"><span>1.25 kg</span><span>8 plates</span></div>
+      <div class="plate-inv-row"><span>1.5 kg</span><span>8 plates</span></div>
+      <div class="plate-inv-row"><span>2 kg</span><span>8 plates</span></div>
+      <div class="plate-inv-row"><span>2.5 kg</span><span>4 plates</span></div>
+      <div class="plate-sub" style="text-align:left;margin-top:10px">
+        Shared across both dumbbells and loaded evenly, so each side of one bell draws from
+        2×1.25, 2×1.5, 2×2, 1×2.5 kg — up to 4 plates per side.
+      </div>
+    </div>`;
+
+  updatePlateCalc();
+}
+
+function setPlateTarget(kg) {
+  plateCalc.target = kg;
+  const inp = document.getElementById('plate-target');
+  if (inp) inp.value = kg;
+  updatePlateCalc();
+}
+
+// Reads the two inputs, solves, and repaints only #plate-result (keeps focus).
+function updatePlateCalc() {
+  const tEl = document.getElementById('plate-target');
+  const hEl = document.getElementById('plate-handle');
+  const out = document.getElementById('plate-result');
+  if (!out) return;
+  if (tEl) plateCalc.target = tEl.value;
+  if (hEl) plateCalc.handle = hEl.value;
+
+  const target = parseFloat(String(plateCalc.target).replace(',', '.'));
+  const handle = parseFloat(String(plateCalc.handle).replace(',', '.'));
+  const h = Number.isFinite(handle) && handle >= 0 ? handle : 0;
+
+  if (!Number.isFinite(target) || target <= 0) {
+    out.innerHTML = `<div class="card"><div class="plate-sub">Enter a target weight to see the plate setup.</div></div>`;
+    return;
+  }
+
+  const range = plateRange(h);
+  if (target < range.min - 1e-9) {
+    out.innerHTML = `<div class="card">
+      <div class="plate-sub plate-warn">Target ${fmtKg(target)} kg is below the empty handle (${fmtKg(h)} kg). The lightest possible dumbbell is ${fmtKg(range.min)} kg.</div>
+    </div>`;
+    return;
+  }
+
+  const perSideTarget = (target - h) / 2;
+  const sol = solvePlates(Math.max(0, perSideTarget));
+  const achieved = h + 2 * sol.sum;
+  const exact = Math.abs(achieved - target) < 1e-9;
+
+  // Group per-side plates by weight for a compact "2.5×1 · 2×1" readout.
+  const counts = {};
+  sol.plates.forEach(w => { counts[w] = (counts[w] || 0) + 1; });
+  const grouped = Object.keys(counts).sort((a, b) => b - a)
+    .map(w => `${fmtKg(+w)}×${counts[w]}`).join('  ·  ');
+  const chain = sol.plates.length ? sol.plates.map(w => fmtKg(w)).join(' + ') : 'no plates (bare handle)';
+
+  // Simple symmetric visual: plates | bar | plates.
+  const plateBox = w => {
+    const size = 20 + w * 8; // heavier = taller
+    return `<span class="plate-vis" style="width:9px;height:${size}px" title="${fmtKg(w)} kg"></span>`;
+  };
+  const leftVis  = sol.plates.slice().sort((a,b)=>a-b).map(plateBox).join('');
+  const rightVis = sol.plates.slice().sort((a,b)=>b-a).map(plateBox).join('');
+
+  let note;
+  if (exact) note = `Exact match ✓`;
+  else if (achieved > target) note = `Closest available: ${fmtKg(achieved)} kg (+${fmtKg(achieved - target)} over target)`;
+  else note = `Closest available: ${fmtKg(achieved)} kg (${fmtKg(target - achieved)} under target)`;
+
+  out.innerHTML = `<div class="card">
+    <div class="card-title">Load each side</div>
+    <div class="plate-dumbbell">${leftVis}<span class="plate-bar"></span>${rightVis}</div>
+    <div class="plate-side-list">${chain}</div>
+    ${sol.plates.length ? `<div class="plate-sub">${grouped} &nbsp;·&nbsp; ${sol.count} plate${sol.count === 1 ? '' : 's'} per side</div>` : ''}
+    <div class="plate-total" style="margin-top:12px">${fmtKg(achieved)} kg</div>
+    <div class="plate-sub">${esc(note)} &nbsp;·&nbsp; target ${fmtKg(target)} kg</div>
+    <div class="plate-sub" style="margin-top:8px">Reachable range with this handle: ${fmtKg(range.min)}–${fmtKg(range.max)} kg</div>
+  </div>`;
 }
 
 // ════════════════════════════════════════════════════
