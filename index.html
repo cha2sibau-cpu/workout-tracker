@@ -324,7 +324,6 @@ body:not(.authed) .tab-bar,body:not(.authed) .tab-pane{display:none}
 
 /* ── Plate calculator tab ── */
 .plate-target-inp{width:100%;min-height:52px;border:1.5px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;font-size:20px;font-weight:700;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;-webkit-appearance:none}
-.plate-handle-inp{width:90px;min-height:40px;border:1.5px solid var(--border);border-radius:var(--r-sm);padding:6px 8px;font-size:15px;font-weight:600;text-align:center;background:var(--bg);color:var(--text);font-family:inherit;-webkit-appearance:none}
 .plate-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .plate-chip{padding:8px 12px;font-size:13px;font-weight:700;border:1.5px solid var(--border-strong);border-radius:var(--r-sm);background:none;color:var(--text);cursor:pointer;font-family:inherit}
 .plate-result{margin-top:16px}
@@ -2390,8 +2389,9 @@ const PLATE_INVENTORY_PER_SIDE = [
 const MAX_PLATES_PER_SIDE = 4;
 
 // Persisted-in-memory calculator state (survives tab switches within a session).
-// Handle default matches the user's ~250 g plastic handles; still editable in-tab.
-const plateCalc = { target: '', handle: 0.25 };
+// Bar/handle weight is counted as zero — the user's plates aren't exact anyway,
+// so the target is treated as pure plate load split evenly across both sides.
+const plateCalc = { target: '' };
 
 // Brute-force the closest per-side plate combination to `perSideTarget` kg.
 // Returns { plates:[w...], sum, count }. Ties break toward fewer plates.
@@ -2422,10 +2422,10 @@ function solvePlates(perSideTarget) {
 
 function fmtKg(n) { return (Math.round(n * 100) / 100).toString().replace(/\.00$/, '').replace(/(\.\d)0$/, '$1'); }
 
-// The min / max dumbbell weight reachable with this handle.
-function plateRange(handle) {
+// The min / max dumbbell weight reachable (bar counted as zero).
+function plateRange() {
   const max = solvePlates(999); // saturates to the heaviest 4-plate combo
-  return { min: handle, max: handle + 2 * max.sum };
+  return { min: 0, max: 2 * max.sum };
 }
 
 // Recommended weights for today's exercises, for the quick-fill chips.
@@ -2463,11 +2463,6 @@ function renderPlates() {
       <input id="plate-target" class="plate-target-inp" type="text" inputmode="decimal"
         placeholder="e.g. 12" value="${esc(String(plateCalc.target))}"
         oninput="updatePlateCalc()">
-      <div class="total-time-row" style="margin-top:14px">
-        <label for="plate-handle">Empty handle weight (kg)</label>
-        <input id="plate-handle" class="plate-handle-inp" type="text" inputmode="decimal"
-          value="${esc(String(plateCalc.handle))}" oninput="updatePlateCalc()">
-      </div>
       ${chipHtml}
     </div>
 
@@ -2498,32 +2493,21 @@ function setPlateTarget(kg) {
 // Reads the two inputs, solves, and repaints only #plate-result (keeps focus).
 function updatePlateCalc() {
   const tEl = document.getElementById('plate-target');
-  const hEl = document.getElementById('plate-handle');
   const out = document.getElementById('plate-result');
   if (!out) return;
   if (tEl) plateCalc.target = tEl.value;
-  if (hEl) plateCalc.handle = hEl.value;
 
   const target = parseFloat(String(plateCalc.target).replace(',', '.'));
-  const handle = parseFloat(String(plateCalc.handle).replace(',', '.'));
-  const h = Number.isFinite(handle) && handle >= 0 ? handle : 0;
 
   if (!Number.isFinite(target) || target <= 0) {
     out.innerHTML = `<div class="card"><div class="plate-sub">Enter a target weight to see the plate setup.</div></div>`;
     return;
   }
 
-  const range = plateRange(h);
-  if (target < range.min - 1e-9) {
-    out.innerHTML = `<div class="card">
-      <div class="plate-sub plate-warn">Target ${fmtKg(target)} kg is below the empty handle (${fmtKg(h)} kg). The lightest possible dumbbell is ${fmtKg(range.min)} kg.</div>
-    </div>`;
-    return;
-  }
-
-  const perSideTarget = (target - h) / 2;
+  const range = plateRange();
+  const perSideTarget = target / 2;
   const sol = solvePlates(Math.max(0, perSideTarget));
-  const achieved = h + 2 * sol.sum;
+  const achieved = 2 * sol.sum;
   const exact = Math.abs(achieved - target) < 1e-9;
 
   // Group per-side plates by weight for a compact "2.5×1 · 2×1" readout.
@@ -2531,7 +2515,7 @@ function updatePlateCalc() {
   sol.plates.forEach(w => { counts[w] = (counts[w] || 0) + 1; });
   const grouped = Object.keys(counts).sort((a, b) => b - a)
     .map(w => `${fmtKg(+w)}×${counts[w]}`).join('  ·  ');
-  const chain = sol.plates.length ? sol.plates.map(w => fmtKg(w)).join(' + ') : 'no plates (bare handle)';
+  const chain = sol.plates.length ? sol.plates.map(w => fmtKg(w)).join(' + ') : 'no plates (bare bar)';
 
   // Simple symmetric visual: plates | bar | plates.
   const plateBox = w => {
@@ -2553,7 +2537,7 @@ function updatePlateCalc() {
     ${sol.plates.length ? `<div class="plate-sub">${grouped} &nbsp;·&nbsp; ${sol.count} plate${sol.count === 1 ? '' : 's'} per side</div>` : ''}
     <div class="plate-total" style="margin-top:12px">${fmtKg(achieved)} kg</div>
     <div class="plate-sub">${esc(note)} &nbsp;·&nbsp; target ${fmtKg(target)} kg</div>
-    <div class="plate-sub" style="margin-top:8px">Reachable range with this handle: ${fmtKg(range.min)}–${fmtKg(range.max)} kg</div>
+    <div class="plate-sub" style="margin-top:8px">Reachable range (bar counted as 0): ${fmtKg(range.min)}–${fmtKg(range.max)} kg</div>
   </div>`;
 }
 
