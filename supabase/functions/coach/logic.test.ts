@@ -8,6 +8,7 @@ import {
   computeTrendSummary,
   exerciseNote,
   formatProgramContext,
+  summarizeDurations,
   summarizeLastSameTypeSession,
 } from "./logic.ts";
 
@@ -134,6 +135,24 @@ Deno.test("summarizeLastSameTypeSession reports when no matching session exists"
     summarizeLastSameTypeSession([], "Push"),
     "No prior Push session logged yet.",
   );
+});
+
+Deno.test("summarizeDurations reports same-type and overall averages", () => {
+  const sessions = [
+    { date: "2026-01-06", dayType: "Push", durationMin: 55, exercises: [] },
+    { date: "2026-01-04", dayType: "Push", durationMin: 61, exercises: [] },
+    { date: "2026-01-02", dayType: "Pull", durationMin: 40, exercises: [] },
+  ];
+  const out = summarizeDurations(sessions, "Push");
+  assertStringIncludes(out, "Push");
+  assertStringIncludes(out, "55");
+  assertStringIncludes(out, "61");
+  assertStringIncludes(out, "avg 58"); // (55+61)/2 = 58
+});
+
+Deno.test("summarizeDurations falls back when no durations logged", () => {
+  const sessions = [{ date: "2026-01-06", dayType: "Push", exercises: [] }];
+  assertEquals(summarizeDurations(sessions, "Push"), "No session times logged yet.");
 });
 
 Deno.test("buildRecommendPrompt lists exercises, program rules, and deload guard", () => {

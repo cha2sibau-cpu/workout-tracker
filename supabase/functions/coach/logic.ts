@@ -2,7 +2,7 @@
 
 export interface SetEntry { kg?: string; reps?: string; rpe?: string; note?: string; }
 export interface ExerciseEntry { name: string; note?: string; sets: SetEntry[]; }
-export interface SessionData { date: string; dayType?: string; exercises: ExerciseEntry[]; }
+export interface SessionData { date: string; dayType?: string; durationMin?: number; exercises: ExerciseEntry[]; }
 export interface ChatMessage { role: "user" | "assistant"; content: string; }
 
 export interface TodayExercise { name: string; targetReps: string; recSets: number; }
@@ -185,6 +185,30 @@ export function summarizeLastSameTypeSession(
     lines.push(`- ${ex.name}: ${setStr}${note ? ` — note: "${note}"` : ""}`);
   }
   return lines.length > 1 ? lines.join("\n") : `No logged sets in the last ${dayType} session.`;
+}
+
+// Compact summary of recent session durations — the signal that tells the
+// sequencer whether time pressure justifies supersets. Reports this day type's
+// recent times plus an overall average, or a fallback when none are logged.
+export function summarizeDurations(sessions: SessionData[], dayType: string): string {
+  const withTime = sessions.filter((s) => typeof s.durationMin === "number" && s.durationMin! > 0);
+  if (!withTime.length) return "No session times logged yet.";
+
+  const avg = (ns: number[]) => Math.round(ns.reduce((a, b) => a + b, 0) / ns.length);
+
+  const sameType = withTime
+    .filter((s) => (s.dayType || "") === dayType)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 5);
+  const overall = withTime.slice(0, 10).map((s) => s.durationMin!);
+
+  const parts: string[] = [];
+  if (sameType.length) {
+    const mins = sameType.map((s) => s.durationMin!);
+    parts.push(`This day type (${dayType}): ${mins.join(", ")} min (avg ${avg(mins)}).`);
+  }
+  parts.push(`All days: avg ${avg(overall)} min over last ${overall.length}.`);
+  return `Recent session times — ${parts.join(" ")}`;
 }
 
 export function buildRecommendPrompt(params: {
