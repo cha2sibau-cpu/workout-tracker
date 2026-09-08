@@ -1216,7 +1216,7 @@ function renderToday() {
     h += `</div>`;
 
     h += `
-      <button class="btn btn-outline btn-sm" id="seq-btn" style="width:100%;margin-bottom:8px" onclick="suggestSequence('${dtSafe}',${phase},${weekNum})">🔀 Suggest order / supersets</button>
+      <button class="btn btn-outline btn-sm" id="seq-btn" style="width:100%;margin-bottom:8px" onclick="suggestSequence('${dtSafe}',${phase},${weekNum})">▶ Start workout</button>
       <div id="seq-panel"></div>`;
     // Inline coach card — populated by paintTodayCoach() from draft[dKey].coach.
     h += `<div class="card" id="today-coach-card" style="display:none">
@@ -1466,7 +1466,7 @@ async function suggestSequence(dayType, phase, weekNum) {
   if (!exercises.length) { panel.innerHTML = `<div class="seq-card">No exercises to sequence today.</div>`; return; }
 
   if (btn) btn.disabled = true;
-  panel.innerHTML = `<div class="seq-card seq-loading">🤖 Claude is optimizing your order…</div>`;
+  panel.innerHTML = `<div class="seq-card seq-loading">🤖 Claude is analyzing your logs…</div>`;
 
   try {
     const { data: { session } } = await sb.auth.getSession();
