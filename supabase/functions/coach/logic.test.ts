@@ -99,11 +99,28 @@ Deno.test("buildSequencePrompt lists exercises in order and asks for supersets",
       { name: "DB bench press", targetReps: "12", sets: 4 },
       { name: "Overhead DB press", targetReps: "10", sets: 4, warning: "RPE cap: 7 always" },
     ],
+    trendSummary: "DB bench press: 18kg -> 22kg, trend up",
+    lastSameTypeSummary: "Last Push session (2026-01-04): DB bench press: 22kg×8 @RPE8",
+    durationSummary: "Recent session times — This day type (Push): 58, 61 min (avg 60). All days: avg 52 min over last 8.",
   });
   assertStringIncludes(prompt, "1. DB bench press — target 12 reps — 4 sets");
   assertStringIncludes(prompt, "⚠ RPE cap: 7 always");
   assertStringIncludes(prompt, "superset");
   assertStringIncludes(prompt, "6-month, 4-phase periodisation program");
+});
+
+Deno.test("buildSequencePrompt grounds the decision in logs, time, and RPE", () => {
+  const prompt = buildSequencePrompt({
+    phase: 2, weekNum: 8, dayType: "Push", isDeload: false,
+    exercises: [{ name: "DB bench press", targetReps: "12", sets: 3 }],
+    trendSummary: "DB bench press: 18kg -> 22kg, trend up",
+    lastSameTypeSummary: "Last Push session (2026-01-04): DB bench press: 22kg×8 @RPE8",
+    durationSummary: "Recent session times — This day type (Push): 58, 61 min (avg 60). All days: avg 52 min over last 8.",
+  });
+  assertStringIncludes(prompt, "DB bench press: 18kg -> 22kg, trend up");
+  assertStringIncludes(prompt, "Last Push session (2026-01-04)");
+  assertStringIncludes(prompt, "avg 60");
+  assertStringIncludes(prompt, "Saving time is the main reason to superset"); // time-first rationale
 });
 
 Deno.test("exerciseNote reads the per-exercise note", () => {

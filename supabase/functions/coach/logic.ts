@@ -125,19 +125,24 @@ export function buildCoachPrompt(params: {
   ].join("\n");
 }
 
-// Prompt for the dedicated "suggest order / supersets" button. Returns a
-// structured recommendation (via the caller's JSON schema) rather than prose.
+// Prompt for the dedicated "Start workout" button. Returns a structured
+// recommendation (via the caller's JSON schema) rather than prose. Grounded in
+// the lifter's real logs, recent RPE trend, and how long recent sessions ran —
+// because saving time is the main reason to superset.
 export function buildSequencePrompt(params: {
   phase: number;
   weekNum: number;
   dayType: string;
   isDeload: boolean;
   exercises: ProgramExercise[];
+  trendSummary: string;
+  lastSameTypeSummary: string;
+  durationSummary: string;
 }): string {
-  const { phase, weekNum, dayType, isDeload, exercises } = params;
+  const { phase, weekNum, dayType, isDeload, exercises, trendSummary, lastSameTypeSummary, durationSummary } = params;
 
   return [
-    `You are a strength coach optimizing the exercise order for a lifter's workout today and identifying safe, effective superset pairings.`,
+    `You are a strength coach optimizing the exercise order for a lifter's workout today and identifying safe, effective superset pairings. You are the single source of truth for order and supersets — base your decision on their real logs and time spent, not just textbook rules.`,
     ``,
     PLAN_RULES,
     ``,
@@ -146,9 +151,18 @@ export function buildSequencePrompt(params: {
     `The exercises currently planned today, in their current order:`,
     formatExerciseList(exercises),
     ``,
-    `Recommend the best order to perform these exercises: compound/heaviest and most technical lifts first, isolation work last, managing fatigue and respecting the RPE ceilings above. Then suggest any pairs or small groups that work well as supersets (e.g. non-competing muscle groups, or agonist/antagonist) to save time without compromising the key lifts — or return an empty supersets list if none are advisable today.`,
+    `Recent progress across exercises:`,
+    trendSummary,
     ``,
-    `Use only the exercise names exactly as given. For each exercise in "sequence" give a one-line reason. For each superset, list the exercise names and a one-line reason. "summary" is one or two sentences of overall guidance.`,
+    `Previous same-type session:`,
+    lastSameTypeSummary,
+    ``,
+    `Time spent recently:`,
+    durationSummary,
+    ``,
+    `Recommend the best order: compound/heaviest and most technical lifts first, isolation work last, managing fatigue and respecting the RPE ceilings above. Then decide on supersets. Saving time is the main reason to superset: if recent sessions of this day type are running long, lean toward pairing non-competing or agonist/antagonist / isolation work to cut time without compromising the key lifts. If sessions are already short, or recent RPE is drifting high (fatigue/recovery risk), be conservative — recommend fewer or no supersets. Return an empty supersets list if none are advisable today.`,
+    ``,
+    `Use only the exercise names exactly as given. "sequence" must list every exercise today in the recommended order, each with a one-line reason. For each superset, list the exercise names and a one-line reason. "summary" is one or two sentences of overall guidance that references the time reasoning (e.g. recent average duration and the time you expect the supersets to save).`,
   ].join("\n");
 }
 
