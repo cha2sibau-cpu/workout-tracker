@@ -1101,7 +1101,7 @@ function renderToday() {
       }
     });
     h += `</ul></div>`;
-    h += totalTimeFieldHtml(today, dayType, draftDay);
+    h += mobilityTimeFieldsHtml(today, dayType, draftDay);
     h += `<button class="btn btn-primary" onclick="markCompleteMobility('${today}','${dayType}')">Mark Complete ✓</button>`;
 
   } else {
@@ -1272,6 +1272,34 @@ function upTotalTime(date, dayType, val) {
   const dKey  = date + '|' + dayType;
   if (!draft[dKey]) draft[dKey] = {};
   draft[dKey].totalMin = val;
+  saveDraft(draft);
+}
+
+// Mobility days capture time as indoor walking (may be blank/0) + mobility work.
+// Both persist in the day draft; markCompleteMobility sums them into durationMin.
+function mobilityTimeFieldsHtml(date, dayType, draftDay) {
+  const dtJs = dayType.replace(/'/g, "\\'");
+  const walk = (draftDay && draftDay.walkMin) || '';
+  const other = (draftDay && draftDay.otherMin) || '';
+  return `<div class="total-time-row">
+      <label for="walk-min-inp">🚶 Indoor walking (min)</label>
+      <input type="number" inputmode="numeric" min="0" id="walk-min-inp" class="total-time-inp"
+        placeholder="0" value="${esc(walk)}"
+        oninput="upMobTime('${date}','${dtJs}','walkMin',this.value)">
+    </div>
+    <div class="total-time-row">
+      <label for="other-min-inp">🧘 Mobility work (min)</label>
+      <input type="number" inputmode="numeric" min="0" id="other-min-inp" class="total-time-inp"
+        placeholder="e.g. 20" value="${esc(other)}"
+        oninput="upMobTime('${date}','${dtJs}','otherMin',this.value)">
+    </div>`;
+}
+
+function upMobTime(date, dayType, field, val) {
+  const draft = getDraft();
+  const dKey  = date + '|' + dayType;
+  if (!draft[dKey]) draft[dKey] = {};
+  draft[dKey][field] = val;
   saveDraft(draft);
 }
 
@@ -1711,7 +1739,11 @@ function markCompleteMobility(date, dayType) {
     }
     return { name: item, rounds };
   });
-  markComplete(date, dayType, exercises);
+  const w = parseInt(draftDay.walkMin, 10);
+  const o = parseInt(draftDay.otherMin, 10);
+  const walk = Number.isFinite(w) && w > 0 ? w : 0;
+  const other = Number.isFinite(o) && o > 0 ? o : 0;
+  markComplete(date, dayType, exercises, { walkMin: walk, otherMin: other, totalMin: walk + other });
 }
 
 function toggleUpcoming() {
@@ -1779,17 +1811,24 @@ function markCompleteExercise(date, dayType) {
   markComplete(date, dayType, exercises);
 }
 
-function markComplete(date, dayType, exercises) {
+function markComplete(date, dayType, exercises, timeOverride) {
   if (!confirm(`Mark ${dayType} session as complete?`)) return;
 
   const sessions = getSessions();
   const idx = sessions.findIndex(s => s.date === date);
   const session = { id: Date.now(), date, dayType, exercises, completedAt: new Date().toISOString() };
 
-  // Total workout time (manual entry), if provided — read before the draft is cleared.
-  const rawMin = (getDraft()[date + '|' + dayType] || {}).totalMin;
-  const durationMin = parseInt(rawMin, 10);
-  if (Number.isFinite(durationMin) && durationMin > 0) session.durationMin = durationMin;
+  // Total workout time. Mobility days pass a summed override (walk + mobility
+  // work) and keep the split on the session; strength days read the single field.
+  if (timeOverride) {
+    if (timeOverride.totalMin > 0) session.durationMin = timeOverride.totalMin;
+    session.walkMin = timeOverride.walkMin;
+    session.otherMin = timeOverride.otherMin;
+  } else {
+    const rawMin = (getDraft()[date + '|' + dayType] || {}).totalMin;
+    const durationMin = parseInt(rawMin, 10);
+    if (Number.isFinite(durationMin) && durationMin > 0) session.durationMin = durationMin;
+  }
 
   if (idx >= 0) sessions[idx] = session; else sessions.push(session);
   saveSessions(sessions);
