@@ -6,7 +6,14 @@
 // never mutates the stored program.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { buildSequencePrompt, type ProgramExercise } from "../coach/logic.ts";
+import {
+  buildSequencePrompt,
+  computeTrendSummary,
+  summarizeDurations,
+  summarizeLastSameTypeSession,
+  type ProgramExercise,
+  type SessionData,
+} from "../coach/logic.ts";
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -88,12 +95,25 @@ Deno.serve(async (req) => {
   const exercises = Array.isArray(body.exercises) ? body.exercises : [];
   if (!exercises.length) return jsonResponse({ error: "exercises is required" }, 400);
 
+  const { data: sessionRows, error: sessErr } = await supabase
+    .from("sessions")
+    .select("data")
+    .order("date", { ascending: false })
+    .limit(40);
+  if (sessErr) return jsonResponse({ error: sessErr.message }, 500);
+
+  const sessions = (sessionRows ?? []).map((r) => r.data as SessionData);
+  const dayType = body.dayType ?? "";
+
   const prompt = buildSequencePrompt({
     phase: body.phase ?? 1,
     weekNum: body.weekNum ?? 1,
-    dayType: body.dayType ?? "",
+    dayType,
     isDeload: !!body.isDeload,
     exercises,
+    trendSummary: computeTrendSummary(sessions),
+    lastSameTypeSummary: summarizeLastSameTypeSession(sessions, dayType),
+    durationSummary: summarizeDurations(sessions, dayType),
   });
 
   const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
