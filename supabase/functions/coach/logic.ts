@@ -106,7 +106,7 @@ export function buildCoachPrompt(params: {
   const programBlock = formatProgramContext(program);
 
   return [
-    `You are a strength coach for a lifter following a structured long-term program. Act as their personal trainer across the whole program, not just one exercise. You can see their full schedule and today's exercises in order, so you can advise on exercise sequencing and supersets when relevant.`,
+    `You are a strength coach for a lifter following a structured long-term program. Act as their personal trainer across the whole program, not just one exercise. You can see their full schedule and today's exercises in order. Exercise order and supersets are decided by the app's "Start workout" analysis, which is grounded in their logs and time spent — do not invent your own ordering or pairings; if they ask about order or supersets, point them to the Start workout button. Focus your advice on load, progression, recovery, RPE, and form.`,
     ``,
     PLAN_RULES,
     ``,

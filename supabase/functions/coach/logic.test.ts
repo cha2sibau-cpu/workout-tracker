@@ -81,6 +81,17 @@ Deno.test("buildCoachPrompt includes the program schedule and today's ordered ex
   assertStringIncludes(prompt, "2. Lateral raise");
 });
 
+Deno.test("buildCoachPrompt defers order/supersets to the Start workout analysis", () => {
+  const prompt = buildCoachPrompt({
+    phase: 1, weekNum: 2, dayType: "Push", isDeload: false,
+    trendSummary: "n/a", recentMessages: [], newMessage: "What order should I do today?",
+  });
+  // No longer offers to prescribe sequencing/supersets itself…
+  assertEquals(prompt.includes("advise on exercise sequencing and supersets"), false);
+  // …and points the lifter at the Start workout analysis instead.
+  assertStringIncludes(prompt, "Start workout");
+});
+
 Deno.test("formatProgramContext returns empty string when no program given", () => {
   assertEquals(formatProgramContext(undefined), "");
 });
