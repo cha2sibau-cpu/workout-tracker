@@ -1184,15 +1184,19 @@ function renderToday() {
 
     const emitted = {};
     let firstRow = true;
-    workout.exercises.forEach((ex, ei) => {
+    const order = Array.isArray(draftDay.appliedOrder) && draftDay.appliedOrder.length
+      ? draftDay.appliedOrder
+      : workout.exercises.map((_, i) => i);
+    order.forEach((ei) => {
+      if (ei < 0 || ei >= workout.exercises.length) return;
       if (emitted[ei]) return;
+      const ex = workout.exercises[ei];
       const g = groupOf[ei];
       if (g && g[0] === ei) {
-        // Group leader — emit the whole group adjacent, inside one frame.
+        // Group leader → emit the whole group adjacent here (at the leader's
+        // slot in the applied order). Non-leader members are skipped below.
         if (applied) {
-          h += `<div class="superset-applied"><div class="superset-applied-head">`
-            + `<div class="superset-tag">🔗 Superset — perform back-to-back</div>`
-            + `<button class="btn-ungroup" onclick="ungroupSupersets('${today}','${dtSafe}')">Ungroup</button></div>`;
+          h += `<div class="superset-applied"><div class="superset-tag">🔗 Superset — perform back-to-back</div>`;
         } else {
           h += `<div class="superset-wrap"><div class="superset-tag">🔗 Superset — perform back-to-back</div>`;
         }
@@ -1205,11 +1209,11 @@ function renderToday() {
         h += `</div>`;
         firstRow = false;
       } else if (g) {
-        // Member whose leader hasn't been reached yet — emit with the leader.
-        return;
+        return; // other members emitted with the group leader
       } else {
         if (!firstRow) h += `<div class="ex-divider"></div>`;
         h += renderEx(ex, ei);
+        emitted[ei] = true;
         firstRow = false;
       }
     });
@@ -1500,10 +1504,17 @@ function paintSeqPanel(dKey) {
 }
 
 function renderSequence(data, dKey) {
-  const seq = Array.isArray(data.sequence) ? data.sequence : [];
+  const seq    = Array.isArray(data.sequence) ? data.sequence : [];
   const supers = Array.isArray(data.supersets) ? data.supersets : [];
-  const applied = !!(getDraft()[dKey] && Array.isArray(getDraft()[dKey].appliedSupersets)
-    && getDraft()[dKey].appliedSupersets.length);
+  const dd     = getDraft()[dKey] || {};
+  const applied = Array.isArray(dd.appliedOrder) && dd.appliedOrder.length > 0;
+  const dKeyJs = dKey.replace(/'/g, "\\'");
+
+  // Applied + collapsed → one-line summary the user doesn't have to scroll past.
+  if (applied && !dd.seqOpen) {
+    return `<div class="seq-card"><button class="btn-use-ss applied" onclick="toggleSeqReview('${dKeyJs}')">✓ Plan applied — tap to review / undo</button></div>`;
+  }
+
   let h = `<div class="seq-card">`;
   if (data.summary) h += `<div class="seq-summary">${esc(data.summary)}</div>`;
   if (seq.length) {
@@ -1519,14 +1530,14 @@ function renderSequence(data, dKey) {
       const names = Array.isArray(ss.exercises) ? ss.exercises.map(esc).join(' + ') : '';
       h += `<div class="seq-superset"><span class="seq-name">${names}</span>${ss.reason ? `<span class="seq-reason">${esc(ss.reason)}</span>` : ''}</div>`;
     });
-    const dKeyJs = dKey.replace(/'/g, "\\'");
-    if (applied) {
-      h += `<button class="btn-use-ss applied" onclick="ungroupSupersets2('${dKeyJs}')">✓ Supersets applied — tap to ungroup</button>`;
-    } else {
-      h += `<button class="btn-use-ss" onclick="applySupersets('${dKeyJs}')">Use these supersets ✓</button>`;
-    }
   } else {
     h += `<div class="seq-reason" style="margin-top:6px">No supersets recommended today.</div>`;
+  }
+  if (applied) {
+    h += `<button class="btn-use-ss" onclick="undoPlan2('${dKeyJs}')">Undo — restore original order</button>`;
+    h += `<button class="btn-use-ss applied" onclick="toggleSeqReview('${dKeyJs}')">Collapse ▴</button>`;
+  } else {
+    h += `<button class="btn-use-ss" onclick="applyPlan('${dKeyJs}')">Use this plan ✓</button>`;
   }
   h += `<div class="seq-foot">Advisory only — your program isn't changed.</div></div>`;
   return h;
@@ -1539,50 +1550,75 @@ function findExerciseIndex(exercises, name) {
   return exercises.findIndex(e => norm(e.name) === n);
 }
 
-// Apply the suggested supersets: convert each suggested pair (exercise names) to
-// original indices in today's workout and store them so renderToday groups and
-// reorders those exercises into a distinct frame.
-function applySupersets(dKey) {
+// Apply Claude's plan: build the reordered exercise list (original indices) and
+// the superset groups, store both in the day draft, and re-render so the main
+// Exercises block reflects the plan in place. Names are matched to original
+// indices; any exercise Claude didn't mention is appended in its original order
+// so nothing is ever dropped.
+function applyPlan(dKey) {
   const parts   = dKey.split('|');
   const date    = parts[0], dayType = parts.slice(1).join('|');
   const draft   = getDraft();
   const data    = draft[dKey] && draft[dKey].seq;
-  if (!data || !Array.isArray(data.supersets)) return;
+  if (!data) return;
   const info    = getCycleInfo(date);
   const phase   = info ? info.phase : 1;
   const workout = getPhaseExercises(dayType, phase);
   if (!workout || !workout.exercises) return;
+  const exs = workout.exercises;
 
+  // Order: map sequence names → original indices, then append any missing.
+  const order = [];
+  const inOrder = {};
+  (Array.isArray(data.sequence) ? data.sequence : []).forEach(s => {
+    const i = findExerciseIndex(exs, s && s.name);
+    if (i >= 0 && !inOrder[i]) { order.push(i); inOrder[i] = true; }
+  });
+  exs.forEach((_, i) => { if (!inOrder[i]) order.push(i); });
+
+  // Supersets: map each suggested pair → original indices (>=2 members).
   const seen = {};
   const groups = [];
-  data.supersets.forEach(ss => {
+  (Array.isArray(data.supersets) ? data.supersets : []).forEach(ss => {
     const names = Array.isArray(ss.exercises) ? ss.exercises : [];
     const idxs = [];
     names.forEach(nm => {
-      const i = findExerciseIndex(workout.exercises, nm);
+      const i = findExerciseIndex(exs, nm);
       if (i >= 0 && !seen[i]) { idxs.push(i); seen[i] = true; }
     });
     if (idxs.length >= 2) groups.push(idxs);
   });
-  if (!groups.length) { alert('Could not match the suggested supersets to today\'s exercises.'); return; }
 
   if (!draft[dKey]) draft[dKey] = {};
-  draft[dKey].appliedSupersets = groups;
+  draft[dKey].appliedOrder = order;
+  draft[dKey].appliedSupersets = groups; // may be empty — order still applies
   saveDraft(draft);
   renderToday();
 }
 
-// Remove the applied grouping (from the Ungroup button on the frame).
-function ungroupSupersets(date, dayType) {
+// Clear an applied plan and restore the program's original order.
+function undoPlan(date, dayType) {
   const dKey  = date + '|' + dayType;
   const draft = getDraft();
-  if (draft[dKey]) { delete draft[dKey].appliedSupersets; saveDraft(draft); }
+  if (draft[dKey]) {
+    delete draft[dKey].appliedOrder;
+    delete draft[dKey].appliedSupersets;
+    saveDraft(draft);
+  }
   renderToday();
 }
-// Same, but from the suggestion panel where only dKey is in scope.
-function ungroupSupersets2(dKey) {
+function undoPlan2(dKey) {
   const parts = dKey.split('|');
-  ungroupSupersets(parts[0], parts.slice(1).join('|'));
+  undoPlan(parts[0], parts.slice(1).join('|'));
+}
+
+// Expand/collapse the applied-plan review in the seq panel.
+function toggleSeqReview(dKey) {
+  const draft = getDraft();
+  if (!draft[dKey]) draft[dKey] = {};
+  draft[dKey].seqOpen = !draft[dKey].seqOpen;
+  saveDraft(draft);
+  paintSeqPanel(dKey);
 }
 
 function buildComingUp(fromDateStr) {
