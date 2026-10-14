@@ -5,7 +5,7 @@ export interface ExerciseEntry { name: string; note?: string; sets: SetEntry[]; 
 export interface SessionData { date: string; dayType?: string; durationMin?: number; exercises: ExerciseEntry[]; }
 export interface ChatMessage { role: "user" | "assistant"; content: string; }
 
-export interface TodayExercise { name: string; targetReps: string; recSets: number; }
+export interface TodayExercise { name: string; targetReps: string; recSets: number; startKg?: number; }
 
 // The structured program context the frontend now sends so the coach can
 // reason about the actual schedule and today's exercise ordering/supersets —
@@ -87,7 +87,24 @@ export const PLAN_RULES = `This is a 6-month, 4-phase periodisation program, 7-d
 - Phase 4 (weeks 21-26): Deload + reset. Weeks 21-22: 60% of Phase 3 weights, 2 sets only (mandatory deload, non-optional). Weeks 23-26: reassess and plan next block.
 - Hard ceilings, never exceed regardless of phase: Overhead DB press RPE 7. Bulgarian split squat RPE 7.5 (stop if knee tracks inward).`;
 
+// Block 2 (from 2026-10-19). Progression is counted in rotations of the 8-day
+// queue (a missed day never skips a workout — the next one just waits), so
+// "weekNum" means rotation number for this block.
+export const PLAN_RULES_B2 = `This is Block 2 of a long-term home-dumbbell program (Block 1 was a 26-week, 4-phase program that ended with a deload). 8-day rotation run as a queue — Pull-Compounds, Mobility A, Lower/Core, Mobility B, Push, Pull-Accessories, Rest, Push — so a missed day never skips a workout. 12 rotations:
+- Phase 1 Base (rotations 1-4): RPE 7. Main lifts 3 sets, accessories 2-3 sets.
+- Phase 2 Build (rotations 5-10): RPE 7.5-8. Double progression: add reps until every set hits the top of the rep range at RPE 8 or below, then add the smallest load step.
+- Phase 3 Deload (rotations 11-12): ~60% of working weights, 2 sets (mandatory).
+- Sessions must stay under 60 minutes.
+- Equipment: home only — two adjustable dumbbells (max ~16 kg each), incline bench, resistance band, pulley (lat pulldown, rope face pulls), hang bar. Never suggest other equipment.
+- The lifter's right shoulder does not tolerate heavy pressing (anterior delt / rotator cuff discomfort logged Sep 2026). Seated overhead press was removed. Progress presses with reps before load; keep pressing weights conservative.
+- Hard ceilings: Bulgarian split squat RPE 7.5 (stop if knee tracks inward). Lat pulldown RPE 7.5.`;
+
+export function planRules(block?: number): string {
+  return block === 2 ? PLAN_RULES_B2 : PLAN_RULES;
+}
+
 export function buildCoachPrompt(params: {
+  block?: number;
   phase: number;
   weekNum: number;
   dayType: string;
@@ -97,7 +114,7 @@ export function buildCoachPrompt(params: {
   newMessage: string;
   program?: ProgramContext;
 }): string {
-  const { phase, weekNum, dayType, isDeload, trendSummary, recentMessages, newMessage, program } = params;
+  const { block, phase, weekNum, dayType, isDeload, trendSummary, recentMessages, newMessage, program } = params;
 
   const history = recentMessages
     .map((m) => `${m.role === "user" ? "Lifter" : "Coach"}: ${m.content}`)
@@ -108,9 +125,9 @@ export function buildCoachPrompt(params: {
   return [
     `You are a strength coach for a lifter following a structured long-term program. Act as their personal trainer across the whole program, not just one exercise. You can see their full schedule and today's exercises in order. Exercise order and supersets are decided by the app's "Start workout" analysis, which is grounded in their logs and time spent — do not invent your own ordering or pairings; if they ask about order or supersets, point them to the Start workout button. Focus your advice on load, progression, recovery, RPE, and form.`,
     ``,
-    PLAN_RULES,
+    planRules(block),
     ``,
-    `Current state: Phase ${phase}, Week ${weekNum}, today's day type: ${dayType}.${isDeload ? " This is a mandatory deload week — do not recommend increasing load." : ""}`,
+    `Current state: ${block === 2 ? "Block 2, " : ""}Phase ${phase}, ${block === 2 ? "Rotation" : "Week"} ${weekNum}, today's day type: ${dayType}.${isDeload ? " This is a mandatory deload week — do not recommend increasing load." : ""}`,
     ``,
     programBlock ? `${programBlock}\n` : ``,
     `Recent progress across exercises:`,
@@ -130,6 +147,7 @@ export function buildCoachPrompt(params: {
 // the lifter's real logs, recent RPE trend, and how long recent sessions ran —
 // because saving time is the main reason to superset.
 export function buildSequencePrompt(params: {
+  block?: number;
   phase: number;
   weekNum: number;
   dayType: string;
@@ -139,14 +157,14 @@ export function buildSequencePrompt(params: {
   lastSameTypeSummary: string;
   durationSummary: string;
 }): string {
-  const { phase, weekNum, dayType, isDeload, exercises, trendSummary, lastSameTypeSummary, durationSummary } = params;
+  const { block, phase, weekNum, dayType, isDeload, exercises, trendSummary, lastSameTypeSummary, durationSummary } = params;
 
   return [
     `You are a strength coach optimizing the exercise order for a lifter's workout today and identifying safe, effective superset pairings. You are the single source of truth for order and supersets — base your decision on their real logs and time spent, not just textbook rules.`,
     ``,
-    PLAN_RULES,
+    planRules(block),
     ``,
-    `Current state: Phase ${phase}, Week ${weekNum}, today's day type: ${dayType}.${isDeload ? " This is a mandatory deload week — keep intensity conservative." : ""}`,
+    `Current state: ${block === 2 ? "Block 2, " : ""}Phase ${phase}, ${block === 2 ? "Rotation" : "Week"} ${weekNum}, today's day type: ${dayType}.${isDeload ? " This is a mandatory deload week — keep intensity conservative." : ""}`,
     ``,
     `The exercises currently planned today, in their current order:`,
     formatExerciseList(exercises),
@@ -226,6 +244,7 @@ export function summarizeDurations(sessions: SessionData[], dayType: string): st
 }
 
 export function buildRecommendPrompt(params: {
+  block?: number;
   phase: number;
   weekNum: number;
   dayType: string;
@@ -234,18 +253,18 @@ export function buildRecommendPrompt(params: {
   trendSummary: string;
   exercises: TodayExercise[];
 }): string {
-  const { phase, weekNum, dayType, isDeload, lastSameTypeSummary, trendSummary, exercises } = params;
+  const { block, phase, weekNum, dayType, isDeload, lastSameTypeSummary, trendSummary, exercises } = params;
 
   const exerciseList = exercises
-    .map((e) => `- ${e.name} (target ${e.targetReps} reps, ${e.recSets} sets planned)`)
+    .map((e) => `- ${e.name} (target ${e.targetReps} reps, ${e.recSets} sets planned${e.startKg ? `, first session this block — planned starting weight ${e.startKg} kg` : ""})`)
     .join("\n");
 
   return [
     `You are a strength coach generating per-exercise load recommendations for a lifter's workout today. Base every recommendation on their previous same-type session and the overall program rules below.`,
     ``,
-    PLAN_RULES,
+    planRules(block),
     ``,
-    `Current state: Phase ${phase}, Week ${weekNum}, today's day type: ${dayType}.${isDeload ? " This is a MANDATORY deload week — do not recommend increasing load; prescribe ~60% of prior working weights." : ""}`,
+    `Current state: ${block === 2 ? "Block 2, " : ""}Phase ${phase}, ${block === 2 ? "Rotation" : "Week"} ${weekNum}, today's day type: ${dayType}.${isDeload ? " This is a MANDATORY deload week — do not recommend increasing load; prescribe ~60% of prior working weights." : ""}`,
     ``,
     `Previous same-type session (ground your recommendations in this):`,
     lastSameTypeSummary,
@@ -255,6 +274,8 @@ export function buildRecommendPrompt(params: {
     ``,
     `Today's exercises:`,
     exerciseList,
+    ``,
+    `If an exercise lists a planned starting weight, it has no history in the current block (earlier logs are from the previous block, often a deload): recommend exactly that starting weight with dir "new".`,
     ``,
     `Guiding principle: this is a multi-year program. Prioritize long-term, sustainable progress and injury prevention over fast gains. Be conservative — only recommend a load increase when the last session clearly cleared the top of the rep range at a comfortable RPE, and never exceed the hard RPE ceilings above.`,
     ``,

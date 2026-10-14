@@ -536,6 +536,85 @@ const WORKOUTS = {
   Rest: { rest: true }
 };
 
+// ── Block 2 (from BLOCK2_START) ──
+// Same 8-day order as DAY_TYPES, but run as a QUEUE: the next workout is the one
+// after the last completed session, so a missed day never skips a workout.
+// Progression counts rotations (8 queue slots each) instead of calendar weeks.
+// Each exercise carries its own working-set count and a starting weight (`start`,
+// in the same units the user logs) used until the block has its own history.
+// Pressing is deliberately conservative — the right shoulder doesn't tolerate
+// heavy load — and seated OHP is gone. Sessions are sized to stay under 60 min.
+const BLOCK2_START = '2026-10-19';
+const BLOCK2_ROTATIONS = 12;
+const BLOCK2_PHASE_NAMES = { 1: 'Base', 2: 'Build', 3: 'Deload', 4: 'Complete' };
+function block2Phase(rotation) {
+  return rotation <= 4 ? 1 : rotation <= 10 ? 2 : rotation <= BLOCK2_ROTATIONS ? 3 : 4;
+}
+
+const WORKOUTS_B2 = {
+  'Pull-Compounds': {
+    warmup: [
+      'Band external rotation — 2×15 each arm',
+      'Band pull aparts — 2×15',
+      'Dead hang — 1×20s',
+      'Light DB row — 1×15 @ 40% working weight'
+    ],
+    exercises: [
+      { name:'Lat Pulldown',                      reps:'10–12', sets:3, start:20,   warning:'RPE cap: 7.5 always.' },
+      { name:'One-arm DB row (bench supported)',  reps:'10–12', sets:3, start:12,   warning:null },
+      { name:'Seal row (chest supported)',        reps:'10',    sets:3, start:10.5, warning:null }
+    ]
+  },
+  'Mobility A': WORKOUTS['Mobility A'],
+  'Lower/Core': {
+    warmup: WORKOUTS['Lower/Core'].warmup,
+    exercises: [
+      { name:'Bulgarian split squat', reps:'8–10', sets:3, start:9,   warning:'RPE cap: 7.5 always. Left (weaker) leg first. Stop if knee tracks inward.' },
+      { name:'Romanian deadlift',     reps:'12',   sets:3, start:24,  warning:null },
+      { name:'Goblet squat',          reps:'10',   sets:3, start:14,  warning:'3-second lowering on every rep.' },
+      { name:'Weighted Russian twist',reps:'12',   sets:2, start:4,   warning:null },
+      { name:'Dead bugs',             reps:'12',   sets:2, start:2.6, warning:null }
+    ]
+  },
+  'Mobility B': WORKOUTS['Mobility B'],
+  Push: {
+    warmup: [
+      'Band external rotation — 2×15 each arm',
+      'Band pull aparts — 2×15',
+      'Arm circles forward & backward — 20 each direction',
+      'Light DB press — 1×15 @ 40% working weight'
+    ],
+    supersets: [[2, 3]],
+    exercises: [
+      { name:'Neutral-grip DB bench press', reps:'10–12', sets:3, start:11,  warning:'Shoulder: add reps before weight.' },
+      { name:'Low-incline DB press',        reps:'10–12', sets:3, start:8.5, warning:'Bench at 15–30°. Shoulder: add reps before weight.' },
+      { name:'Lean-away lateral raise',     reps:'12–15', sets:3, start:3,   warning:null },
+      { name:'DB skull crushers',           reps:'10–12', sets:3, start:4,   warning:'Stop if the shoulder complains.' },
+      { name:'Push-ups',                    reps:'8–15',  sets:2, start:0,   warning:'Optional — only if time allows. Stop at RPE 7.' }
+    ]
+  },
+  'Pull-Accessories': {
+    warmup: WORKOUTS['Pull-Accessories'].warmup,
+    supersets: [[0, 1], [2, 3]],
+    exercises: [
+      { name:'Hammer curl',                   reps:'10',    sets:3, start:9, warning:null },
+      { name:'Incline DB curl',               reps:'8–10',  sets:3, start:5, warning:null },
+      { name:'Reverse fly (bench supported)', reps:'10–12', sets:3, start:4, warning:null },
+      { name:'Face pulls',                    reps:'15',    sets:3, start:5, warning:null }
+    ]
+  },
+  Rest: { rest: true }
+};
+
+// Block 2 definition of an exercise, by name (null if it isn't in Block 2).
+function block2ExerciseDef(name) {
+  for (const t of DAY_TYPES) {
+    const ex = (WORKOUTS_B2[t].exercises || []).find(e => e.name === name);
+    if (ex) return ex;
+  }
+  return null;
+}
+
 // Short "what to concentrate on" cues, keyed by exercise name. Kept central
 // (not inline per WORKOUTS entry) so exercises that appear on multiple days
 // share one definition. Rendered under the target-reps line on the Today tab.
@@ -556,7 +635,12 @@ const EXERCISE_TIPS = {
   'Romanian deadlift':                 'Target: hamstrings + glutes. Hinge at the hips, soft knees, flat back. Feel the hamstring stretch; drive hips forward.',
   'Goblet squat':                      'Target: quads + glutes. Elbows inside the knees, chest up, sit between the hips. Full depth if mobility allows.',
   'Weighted Russian twist':            'Target: obliques. Rotate from the ribcage, not just the arms. Controlled — pause each side.',
-  'Dead bugs':                         'Target: deep core (anti-extension). Press your low back into the floor the whole time; move slow, breathe out on extension.'
+  'Dead bugs':                         'Target: deep core (anti-extension). Press your low back into the floor the whole time; move slow, breathe out on extension.',
+  'Neutral-grip DB bench press':       'Target: chest + triceps. Palms facing each other, elbows ~30° from the body — easier on the front of the shoulder.',
+  'Low-incline DB press':              'Target: upper chest. Bench at 15–30°, shoulder blades pinned back and down. Stop short of any shoulder pinch.',
+  'Lean-away lateral raise':           'Target: side delts. Hold a door frame and lean away; raise one arm, lead with the elbow. Slow, no swinging.',
+  'DB skull crushers':                 'Target: triceps. Lying on the bench, lower the dumbbells beside your head; elbows stay pointed up.',
+  'Push-ups':                          'Target: chest + serratus. Body in one straight line; let the shoulder blades move freely. Stop at RPE 7.'
 };
 function getExerciseTip(name) { return EXERCISE_TIPS[name] || ''; }
 
@@ -662,12 +746,28 @@ function parseItem(itemText) {
   return { name, sets: 1, detail: rest };
 }
 
-function getPhaseExercises(dayType, phase) {
-  return WORKOUTS[dayType];
+function getPhaseExercises(dayType, phase, block) {
+  return block === 2 ? WORKOUTS_B2[dayType] : WORKOUTS[dayType];
+}
+
+// Mandatory deload? Block 1: weeks 21–22. Block 2: its Deload phase.
+function isDeloadPhase(phase, weekNum, block) {
+  return block === 2 ? phase === 3 : phase === 4 && weekNum <= 22;
+}
+
+// "Phase 3" for Block 1, "Block 2 · Build" for Block 2.
+function phaseLabel(info) {
+  if (!info || !info.phase) return info && info.block === 2 ? 'Block 2' : '';
+  return info.block === 2 ? 'Block 2 · ' + BLOCK2_PHASE_NAMES[info.phase] : 'Phase ' + info.phase;
 }
 
 // Returns how many sets for this exercise at current phase
-function getSetsForPhase(exerciseName, phase) {
+function getSetsForPhase(exerciseName, phase, block) {
+  if (block === 2) {
+    if (phase === 3) return 2; // deload
+    const def = block2ExerciseDef(exerciseName);
+    return def ? def.sets : 3;
+  }
   if (phase >= 4) return 2;
   if (phase === 3) return 4;
   if (phase === 2) {
@@ -687,15 +787,34 @@ function getWeightIncrement(exerciseName) {
   const isolation = [
     'Lateral raise','Hammer curl','Incline DB curl',
     'Reverse fly (bench supported)','Overhead triceps extension',
-    'Weighted Russian twist','Face pulls'
+    'Weighted Russian twist','Face pulls',
+    'Lean-away lateral raise','DB skull crushers'
   ];
   if (isolation.includes(exerciseName)) return 1;
   return 2.5;
 }
 
+// Has this exercise been logged with any filled set during Block 2?
+function hasBlock2History(exerciseName) {
+  return getSessions().some(s => s.block === 2 && (s.exercises || []).some(e =>
+    e.name === exerciseName && (e.sets || []).some(st => st.reps && String(st.reps).trim())));
+}
+
 // Returns recommendation object based on previous sessions
-function getExerciseRecommendation(exerciseName, targetRepsStr, phase) {
-  const sessions = getSessions().slice().reverse();
+function getExerciseRecommendation(exerciseName, targetRepsStr, phase, block) {
+  // Block 2 only learns from its own sessions — earlier logs end in a deload, so
+  // until an exercise has Block 2 history its planned starting weight is used.
+  // During the deload, the basis is the last non-deload Block 2 session.
+  let sessions = getSessions().slice().reverse();
+  if (block === 2) {
+    const def = block2ExerciseDef(exerciseName);
+    sessions = sessions.filter(s => s.block === 2 && (phase !== 3 || s.phase !== 3));
+    if (!hasBlock2History(exerciseName) && def && def.start > 0) {
+      const kg = phase === 3 ? Math.round(def.start * 0.6 * 2) / 2 : def.start;
+      return { sets: getSetsForPhase(exerciseName, phase, block), reps: targetRepsStr, kg,
+        dir: 'new', msg: 'Block 2 starting weight', lastSummary: '' };
+    }
+  }
   for (const sess of sessions) {
     if (!sess.exercises) continue;
     const ex = sess.exercises.find(e => e.name === exerciseName);
@@ -733,14 +852,18 @@ function getExerciseRecommendation(exerciseName, targetRepsStr, phase) {
     const rpeDisplay = avgRPE !== null ? ' · RPE ' + avgRPE.toFixed(1).replace(/\.0$/, '') : '';
     const lastSummary = `${kgDisplay}${repsDisplay} reps${rpeDisplay}`;
 
-    const recSets = getSetsForPhase(exerciseName, phase);
+    const recSets = getSetsForPhase(exerciseName, phase, block);
     const inc = getWeightIncrement(exerciseName);
     let recKg = lastKg;
     let dir = 'same';
     let msg = 'On track — maintain weight';
 
     const gapFromBottom = bottomTarget - avgReps;
-    if (lastKg <= 0) {
+    if (block === 2 && phase === 3 && lastKg > 0) {
+      recKg = Math.round(lastKg * 0.6 * 2) / 2;
+      dir = 'down';
+      msg = 'Deload — ~60% of working weight';
+    } else if (lastKg <= 0) {
       dir = 'new';
       msg = 'No prior weight — start light';
     } else if (avgReps >= topTarget && (avgRPE === null || avgRPE <= 7.5)) {
@@ -929,9 +1052,43 @@ function addDays(dateStr, n) {
   return localDateStr(new Date(parseLocal(dateStr).getTime() + n * 86400000));
 }
 
+// ── Block 2 queue ──
+// Each Block 2 session stores its absolute queue position (`slot`; slot % 8
+// indexes DAY_TYPES). The next open day gets the slot after the last completed
+// session. The Rest slot is consumed by the calendar: if at least one day has
+// already passed since the last session, the rest happened and the queue moves
+// on. Days after the next open day are projected one slot per day.
+function block2SlotFor(dateStr) {
+  const done = getSessions()
+    .filter(s => s.block === 2 && Number.isInteger(s.slot))
+    .sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  const onDay = done.find(s => s.date === dateStr);
+  if (onDay) return onDay.slot;
+
+  const today = localDateStr();
+  if (dateStr < today) return null; // past day with nothing logged — no queue position
+
+  const last = done.filter(s => s.date <= today).pop() || null;
+  let openDay = last && last.date === today ? addDays(today, 1) : today;
+  if (openDay < BLOCK2_START) openDay = BLOCK2_START;
+  let slot = last ? last.slot + 1 : 0;
+  if (DAY_TYPES[slot % 8] === 'Rest' && last && daysBetween(last.date, openDay) > 1) slot++;
+  return slot + daysBetween(openDay, dateStr);
+}
+
+function block2CycleInfo(dateStr) {
+  const slot = block2SlotFor(dateStr);
+  const paused = isPausedOn(dateStr);
+  if (slot === null) return { block: 2, slot: null, cycleDay: null, weekNum: null, phase: null, dayType: null, cycleLen: 8, paused };
+  const weekNum = Math.floor(slot / 8) + 1; // rotation number
+  return { block: 2, slot, cycleDay: (slot % 8) + 1, weekNum, phase: block2Phase(weekNum),
+    dayType: DAY_TYPES[slot % 8], cycleLen: 8, paused };
+}
+
 function getCycleInfo(dateStr) {
   const start = getStartDate();
   if (!start) return null;
+  if (dateStr >= BLOCK2_START) return block2CycleInfo(dateStr);
   const days = daysBetween(start, dateStr) - pausedDaysBefore(dateStr);
   if (days < 0) return null;
 
@@ -959,7 +1116,7 @@ function getCycleInfo(dateStr) {
     dayType  = DAY_TYPES[cycleDay - 1];
   }
   const phase = weekNum <= 6 ? 1 : weekNum <= 13 ? 2 : weekNum <= 20 ? 3 : 4;
-  return { cycleDay, weekNum, phase, dayType, cycleLen, paused: isPausedOn(dateStr) };
+  return { block: 1, cycleDay, weekNum, phase, dayType, cycleLen, paused: isPausedOn(dateStr) };
 }
 
 function fmtDate(dateStr, opts) {
@@ -1033,8 +1190,8 @@ function renderToday() {
     return;
   }
 
-  const { cycleDay, weekNum, phase, dayType } = info;
-  const workout   = getPhaseExercises(dayType, phase);
+  const { cycleDay, weekNum, phase, dayType, block } = info;
+  const workout   = getPhaseExercises(dayType, phase, block);
   const sessions  = getSessions();
   const todaySession = sessions.find(s => s.date === today);
 
@@ -1043,10 +1200,18 @@ function renderToday() {
       <div class="ph-title">Today</div>
       <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
         <span class="badge badge-blue">Day ${cycleDay} · ${dayType}</span>
-        <span class="badge badge-gray">Week ${weekNum} · Phase ${phase}</span>
+        <span class="badge badge-gray">${block === 2
+          ? `Rotation ${weekNum} of ${BLOCK2_ROTATIONS} · ${BLOCK2_PHASE_NAMES[phase]}`
+          : `Week ${weekNum} · Phase ${phase}`}</span>
       </div>
       <div class="ph-sub" style="margin-top:6px">${fmtDate(today)}</div>
     </div>`;
+
+  if (block === 2 && phase === 4) {
+    h += `<div class="card" style="font-size:14px;line-height:1.45">
+      🏁 <strong>Block 2 is complete.</strong> Keep training at Build settings while you plan Block 3.
+    </div>`;
+  }
 
   if (todaySession) {
     const t = new Date(todaySession.completedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
@@ -1137,8 +1302,8 @@ function renderToday() {
 
     // Full block for one exercise, keyed by its original index `ei`.
     function renderEx(ex, ei) {
-      const numSets  = getSetsForPhase(ex.name, phase);
-      const rec      = getExerciseRecommendation(ex.name, ex.reps, phase);
+      const numSets  = getSetsForPhase(ex.name, phase, block);
+      const rec      = getExerciseRecommendation(ex.name, ex.reps, phase, block);
       const claudeR  = claudeRecFor(dKey, ex.name);
       const prevNote = getPreviousNote(ex.name);
       const tip      = getExerciseTip(ex.name);
@@ -1220,7 +1385,7 @@ function renderToday() {
     h += `</div>`;
 
     h += `
-      <button class="btn btn-outline btn-sm" id="seq-btn" style="width:100%;margin-bottom:8px" onclick="suggestSequence('${dtSafe}',${phase},${weekNum})">▶ Start workout</button>
+      <button class="btn btn-outline btn-sm" id="seq-btn" style="width:100%;margin-bottom:8px" onclick="suggestSequence('${dtSafe}',${phase},${weekNum},${block})">▶ Start workout</button>
       <div id="seq-panel"></div>`;
     // Inline coach card — populated by paintTodayCoach() from draft[dKey].coach.
     h += `<div class="card" id="today-coach-card" style="display:none">
@@ -1251,7 +1416,7 @@ function renderToday() {
   // (grounded in the previous same-type session + program). Slots are already
   // showing the local fallback; this swaps in Claude's version when ready.
   if (document.getElementById('rec-slot-0')) {
-    ensureClaudeRecs(today, dayType, phase, weekNum, workout.exercises);
+    ensureClaudeRecs(today, dayType, phase, weekNum, workout.exercises, block);
   }
 }
 
@@ -1301,6 +1466,10 @@ function upMobTime(date, dayType, field, val) {
   if (!draft[dKey]) draft[dKey] = {};
   draft[dKey][field] = val;
   saveDraft(draft);
+  // Already auto-logged → keep the saved session's time in sync.
+  if (getSessions().some(s => s.date === date && s.dayType === dayType)) {
+    markCompleteMobility(date, dayType, { auto: true, quiet: true });
+  }
 }
 
 // ════════════════════════════════════════════════════
@@ -1333,7 +1502,7 @@ function recBadgeHtml(localRec, claudeRec, loading) {
   } else {
     const kgText = localRec.kg > 0 ? ` @ ${localRec.kg} kg` : '';
     base = `<div class="rec-badge ${cls(localRec.dir)}">${icon(localRec.dir)} Rec: ${localRec.sets}×${localRec.reps}${kgText}</div>`
-      + `<div class="last-sess">Last: ${localRec.lastSummary}</div>`;
+      + `<div class="last-sess">${localRec.lastSummary ? 'Last: ' + localRec.lastSummary : esc(localRec.msg)}</div>`;
   }
   if (loading) base += `<div class="last-sess rec-loading">🤖 Claude is reviewing your last session…</div>`;
   return base;
@@ -1357,19 +1526,19 @@ function autoGrow(el) {
 // Update only the rec slots in place, so an in-progress set/rep input doesn't
 // lose focus from a full re-render. Also refreshes the kg-input placeholders so
 // the weight shown in the field matches Claude's recommendation once it loads.
-function paintRecSlots(dKey, dayType, phase, exercises) {
+function paintRecSlots(dKey, dayType, phase, exercises, block) {
   if (localDateStr() + '|' + dayType !== dKey) return; // day rolled over
   const loading = claudeRecsLoading(dKey);
   exercises.forEach((ex, ei) => {
     const slot = document.getElementById('rec-slot-' + ei);
     if (!slot) return; // user navigated away or day type changed
-    const localRec = getExerciseRecommendation(ex.name, ex.reps, phase);
+    const localRec = getExerciseRecommendation(ex.name, ex.reps, phase, block);
     const claudeR  = claudeRecFor(dKey, ex.name);
     slot.innerHTML = recBadgeHtml(localRec, claudeR, loading);
     // Only overwrite the placeholder for sets the user hasn't typed a weight
     // into — the value attribute is untouched, so nothing they entered is lost.
     const ph = kgPlaceholderFor(localRec, claudeR);
-    const numSets = getSetsForPhase(ex.name, phase);
+    const numSets = getSetsForPhase(ex.name, phase, block);
     for (let s = 1; s <= numSets; s++) {
       const inp = document.getElementById('kg-inp-' + ei + '-' + s);
       if (inp) inp.placeholder = ph;
@@ -1377,24 +1546,29 @@ function paintRecSlots(dKey, dayType, phase, exercises) {
   });
 }
 
-async function ensureClaudeRecs(today, dayType, phase, weekNum, exercises) {
+async function ensureClaudeRecs(today, dayType, phase, weekNum, exercises, block) {
   const dKey = today + '|' + dayType;
   const cached = claudeRecsCache[dKey];
   if (cached && (cached.status === 'loading' || cached.status === 'done')) return;
 
   claudeRecsCache[dKey] = { status: 'loading', recs: {} };
-  paintRecSlots(dKey, dayType, phase, exercises);
+  paintRecSlots(dKey, dayType, phase, exercises, block);
 
   try {
     const { data: { session } } = await sb.auth.getSession();
     if (!session) { claudeRecsCache[dKey] = { status: 'error', recs: {} }; return; }
 
-    const isDeload = phase === 4 && weekNum <= 22;
+    const isDeload = isDeloadPhase(phase, weekNum, block);
     const payload = {
-      phase, weekNum, dayType, isDeload,
-      exercises: exercises.map(ex => ({
-        name: ex.name, targetReps: ex.reps, recSets: getSetsForPhase(ex.name, phase)
-      }))
+      block, phase, weekNum, dayType, isDeload,
+      exercises: exercises.map(ex => {
+        const e = { name: ex.name, targetReps: ex.reps, recSets: getSetsForPhase(ex.name, phase, block) };
+        // First Block 2 session of this exercise → tell Claude the planned start.
+        if (block === 2 && ex.start > 0 && !hasBlock2History(ex.name)) {
+          e.startKg = phase === 3 ? Math.round(ex.start * 0.6 * 2) / 2 : ex.start;
+        }
+        return e;
+      })
     };
     const res = await fetch(SUPABASE_URL + '/functions/v1/recommend', {
       method: 'POST',
@@ -1411,7 +1585,7 @@ async function ensureClaudeRecs(today, dayType, phase, weekNum, exercises) {
     console.error('recommend failed', err);
     claudeRecsCache[dKey] = { status: 'error', recs: {} };
   }
-  paintRecSlots(dKey, dayType, phase, exercises);
+  paintRecSlots(dKey, dayType, phase, exercises, block);
 }
 
 // Transient (non-persisted) state for the Today-page coach card. The messages
@@ -1458,15 +1632,16 @@ async function sendTodayCoach(dKey, message) {
     const { data: { session } } = await sb.auth.getSession();
     if (!session) throw new Error('Not signed in.');
     const info = getStartDate() ? getCycleInfo(localDateStr()) : null;
+    const block   = info ? info.block : 1;
     const phase   = info ? info.phase : 1;
     const weekNum = info ? info.weekNum : 1;
     const dayType = info ? info.dayType : '';
-    const isDeload = phase === 4 && weekNum <= 22;
-    const program = buildProgramContext(dayType, phase);
+    const isDeload = isDeloadPhase(phase, weekNum, block);
+    const program = buildProgramContext(dayType, phase, block);
     const res = await fetch(SUPABASE_URL + '/functions/v1/coach', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
-      body: JSON.stringify({ message, phase, weekNum, dayType, isDeload, program })
+      body: JSON.stringify({ message, block, phase, weekNum, dayType, isDeload, program })
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error || 'Request failed');
@@ -1487,13 +1662,13 @@ async function sendTodayCoach(dKey, message) {
 // ── Dedicated "Suggest order / supersets" (Today screen) ──
 // The suggestion is held in draft[dKey].seq so it survives tab switches and app
 // minimise; it is cleared only when the session is marked complete.
-async function suggestSequence(dayType, phase, weekNum) {
+async function suggestSequence(dayType, phase, weekNum, block) {
   const btn = document.getElementById('seq-btn');
   const panel = document.getElementById('seq-panel');
   if (!panel) return;
   const dKey = localDateStr() + '|' + dayType;
 
-  const program = buildProgramContext(dayType, phase);
+  const program = buildProgramContext(dayType, phase, block);
   const exercises = program.todayExercises || [];
   if (!exercises.length) { panel.innerHTML = `<div class="seq-card">No exercises to sequence today.</div>`; return; }
 
@@ -1503,11 +1678,11 @@ async function suggestSequence(dayType, phase, weekNum) {
   try {
     const { data: { session } } = await sb.auth.getSession();
     if (!session) { panel.innerHTML = `<div class="seq-card">Not signed in.</div>`; return; }
-    const isDeload = phase === 4 && weekNum <= 22;
+    const isDeload = isDeloadPhase(phase, weekNum, block);
     const res = await fetch(SUPABASE_URL + '/functions/v1/suggest-sequence', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
-      body: JSON.stringify({ phase, weekNum, dayType, isDeload, exercises })
+      body: JSON.stringify({ block, phase, weekNum, dayType, isDeload, exercises })
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error || 'Request failed');
@@ -1591,7 +1766,7 @@ function applyPlan(dKey) {
   if (!data) return;
   const info    = getCycleInfo(date);
   const phase   = info ? info.phase : 1;
-  const workout = getPhaseExercises(dayType, phase);
+  const workout = getPhaseExercises(dayType, phase, info && info.block);
   if (!workout || !workout.exercises) return;
   const exs = workout.exercises;
 
@@ -1657,7 +1832,8 @@ function buildComingUp(fromDateStr) {
     const dStr  = localDateStr(d);
     const dInfo = getCycleInfo(dStr);
     if (!dInfo) continue;
-    const wk       = WORKOUTS[dInfo.dayType];
+    if (!dInfo.dayType) continue;
+    const wk       = getPhaseExercises(dInfo.dayType, dInfo.phase, dInfo.block);
     const dayFmt   = parseLocal(dStr).toLocaleDateString('en-GB', {weekday:'short', day:'numeric', month:'short'});
     const badgeCls = typeBadgeClass(dInfo.dayType);
     let detail = '';
@@ -1700,6 +1876,21 @@ function upMobDraft(date, dayType, itemIdx, roundIdx, checked) {
   saveDraft(draft);
   const li = document.getElementById('cli-' + itemIdx + '-' + roundIdx);
   if (li) li.classList.toggle('done', checked);
+  // Ticking the last box logs the day — fully-ticked days used to stay
+  // unlogged when Mark Complete was forgotten.
+  if (checked && allMobilityTicked(dayType, draft[dKey]) &&
+      !getSessions().some(s => s.date === date && s.dayType === dayType)) {
+    markCompleteMobility(date, dayType, { auto: true });
+  }
+}
+
+function allMobilityTicked(dayType, draftDay) {
+  const workout = WORKOUTS[dayType];
+  return workout.items.every((item, i) => {
+    const n = parseItem(item).sets;
+    for (let r = 1; r <= n; r++) if (draftDay['mob_' + i + '_' + r] !== true) return false;
+    return true;
+  });
 }
 
 function upCarryDraft(date, dayType, itemIdx, roundIdx, kg) {
@@ -1720,7 +1911,7 @@ function upWarmupDraft(date, dayType, i, checked) {
   if (li) li.classList.toggle('done', checked);
 }
 
-function markCompleteMobility(date, dayType) {
+function markCompleteMobility(date, dayType, opts) {
   const draft    = getDraft();
   const dKey     = date + '|' + dayType;
   const draftDay = draft[dKey] || {};
@@ -1743,7 +1934,7 @@ function markCompleteMobility(date, dayType) {
   const o = parseInt(draftDay.otherMin, 10);
   const walk = Number.isFinite(w) && w > 0 ? w : 0;
   const other = Number.isFinite(o) && o > 0 ? o : 0;
-  markComplete(date, dayType, exercises, { walkMin: walk, otherMin: other, totalMin: walk + other });
+  markComplete(date, dayType, exercises, { walkMin: walk, otherMin: other, totalMin: walk + other }, opts);
 }
 
 function toggleUpcoming() {
@@ -1790,13 +1981,14 @@ function exNote(ex) {
 function collectExercises(date, dayType) {
   const info     = getCycleInfo(date);
   const phase    = info ? info.phase : 1;
+  const block    = info ? info.block : 1;
   const draft    = getDraft();
   const dKey     = date + '|' + dayType;
   const draftDay = draft[dKey] || {};
-  const workout  = getPhaseExercises(dayType, phase);
+  const workout  = getPhaseExercises(dayType, phase, block);
   if (!workout || !workout.exercises) return [];
   return workout.exercises.map((ex, ei) => {
-    const numSets = getSetsForPhase(ex.name, phase);
+    const numSets = getSetsForPhase(ex.name, phase, block);
     const sets = [];
     for (let s = 1; s <= numSets; s++) {
       const sd = draftDay[ei+'_'+s] || {};
@@ -1811,12 +2003,25 @@ function markCompleteExercise(date, dayType) {
   markComplete(date, dayType, exercises);
 }
 
-function markComplete(date, dayType, exercises, timeOverride) {
-  if (!confirm(`Mark ${dayType} session as complete?`)) return;
+// opts.auto: save silently (no confirm) and keep the day's draft so the screen
+// stays editable; opts.quiet additionally skips the re-render (typing in a field).
+function markComplete(date, dayType, exercises, timeOverride, opts) {
+  opts = opts || {};
+  if (!opts.auto && !confirm(`Mark ${dayType} session as complete?`)) return;
 
   const sessions = getSessions();
   const idx = sessions.findIndex(s => s.date === date);
-  const session = { id: Date.now(), date, dayType, exercises, completedAt: new Date().toISOString() };
+  const prev = idx >= 0 ? sessions[idx] : null;
+  const session = { id: Date.now(), date, dayType, exercises,
+    completedAt: (opts.auto && prev && prev.completedAt) || new Date().toISOString() };
+
+  // Block 2: record the queue position (and phase, for deload-aware recs).
+  const info = getCycleInfo(date);
+  if (info && info.block === 2 && info.slot !== null) {
+    session.block = 2;
+    session.slot  = info.slot;
+    session.phase = info.phase;
+  }
 
   // Total workout time. Mobility days pass a summed override (walk + mobility
   // work) and keep the split on the session; strength days read the single field.
@@ -1832,6 +2037,11 @@ function markComplete(date, dayType, exercises, timeOverride) {
 
   if (idx >= 0) sessions[idx] = session; else sessions.push(session);
   saveSessions(sessions);
+
+  if (opts.auto) {
+    if (!opts.quiet) renderToday();
+    return;
+  }
 
   const draft = getDraft();
   delete draft[date + '|' + dayType];
@@ -2196,15 +2406,21 @@ function renderWeeklyView(sessions) {
 
     const wsStr = localDateStr(weekStartDate);
     const weStr = localDateStr(weekEndDate);
-    const wInfo = getCycleInfo(wsStr);
-    const phase = wInfo ? wInfo.phase : 1;
+    // Block 2 weeks have no calendar phase — label by the last logged day in the week.
+    let wInfo = getCycleInfo(wsStr);
+    if (wsStr >= BLOCK2_START || weStr >= BLOCK2_START) {
+      for (let k = 6; k >= 0; k--) {
+        const ki = getCycleInfo(addDays(wsStr, k));
+        if (ki && ki.block === 2 && ki.phase) { wInfo = ki; break; }
+      }
+    }
 
     const wsFmt = fmtDate(wsStr, {day:'numeric', month:'short'});
     const weFmt = fmtDate(weStr, {day:'numeric', month:'short'});
 
     h += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">
       <div style="padding:11px 16px;background:var(--surface-alt);border-bottom:1px solid var(--border)">
-        <div style="font-weight:700;font-size:15px">Week ${w} &nbsp;<span style="font-size:12px;font-weight:400;color:var(--text-secondary)">Phase ${phase}</span></div>
+        <div style="font-weight:700;font-size:15px">Week ${w} &nbsp;<span style="font-size:12px;font-weight:400;color:var(--text-secondary)">${phaseLabel(wInfo)}</span></div>
         <div style="font-size:12px;color:var(--text-secondary)">${wsFmt} &ndash; ${weFmt}</div>
       </div>`;
 
@@ -2217,6 +2433,8 @@ function renderWeeklyView(sessions) {
       // index — the 8-day cycle drifts against the 7-day calendar grid, so
       // DAY_TYPES[d] would mislabel days. getCycleInfo() also handles the
       // legacy/new era split for pre-switch dates.
+      // Block 2 is a queue: past days only carry a type if a session was logged,
+      // so nothing there is ever counted as missed.
       const dInfo    = getCycleInfo(dayStr);
       const dayType  = dInfo ? dInfo.dayType : null;
       const isRest   = dayType === 'Rest';
@@ -2282,14 +2500,15 @@ function renderWeeklyView(sessions) {
 // ════════════════════════════════════════════════════
 
 function renderSchedule() {
-  // 8-day rotation overview, generated from the live DAY_TYPES/WORKOUTS so it
+  // 8-day rotation overview, generated from the live DAY_TYPES/WORKOUTS_B2 so it
   // always matches what the Today tab actually schedules.
   const rotationRows = DAY_TYPES.map((t, i) => {
-    const wk = WORKOUTS[t] || {};
+    const wk = WORKOUTS_B2[t] || {};
     let detail;
     if (wk.rest) detail = 'Rest &amp; recovery';
     else if (wk.checklistOnly) detail = (wk.items || []).map(it => parseItem(it).name).join(', ');
-    else detail = (wk.exercises || []).map(e => e.name).join(', ');
+    else detail = (wk.exercises || []).map(e =>
+      `${e.name} ${e.sets}×${e.reps}${e.start > 0 ? ' @ ' + fmtKg(e.start) : ''}`).join(' · ');
     return `<div class="pi" style="display:flex;gap:10px;align-items:flex-start">
       <span class="badge ${typeBadgeClass(t)}" style="flex-shrink:0;min-width:112px;justify-content:center;font-size:11px">Day ${i + 1} · ${t}</span>
       <span style="flex:1;color:var(--text-secondary);line-height:1.4">${detail || '—'}</span>
@@ -2298,9 +2517,9 @@ function renderSchedule() {
 
   const rotationHtml = `
     <div class="phase-card">
-      <div class="phase-hdr">8-Day Rotation</div>
+      <div class="phase-hdr">8-Day Rotation (queue)</div>
       <div class="phase-body">
-        <div class="pi">The cycle is 8 days, so day types drift against the calendar week.</div>
+        <div class="pi">Workouts run in order — a missed day never skips one; the next workout just waits. The Rest day is used up once a calendar day passes. Starting weights in kg.</div>
         ${rotationRows}
       </div>
     </div>`;
@@ -2308,10 +2527,42 @@ function renderSchedule() {
   document.getElementById('schedule-inner').innerHTML = `
     <div class="ph">
       <div class="ph-title">Program</div>
-      <div class="ph-sub">Rotation · 6-month periodisation · progression</div>
+      <div class="ph-sub">Block 2 from ${fmtDate(BLOCK2_START, {day:'numeric', month:'short', year:'numeric'})} · rotation · progression</div>
     </div>
 
     ${rotationHtml}
+
+    <div class="phase-card">
+      <div class="phase-hdr ph1-hdr">Block 2 · Base — Rotations 1–4</div>
+      <div class="phase-body">
+        <div class="pi">Main lifts 3 sets, accessories 2–3 sets</div>
+        <div class="pi">RPE target: 7</div>
+        <div class="pi">Starting weights ≈85% of Block 1 working weights; pressing lower</div>
+        <div class="pi pi-warn">⚠ Shoulder: no seated overhead press; presses add reps before weight</div>
+        <div class="pi pi-amber">⚑ BSS ceiling: RPE 7.5 — never exceed</div>
+      </div>
+    </div>
+
+    <div class="phase-card">
+      <div class="phase-hdr ph2-hdr">Block 2 · Build — Rotations 5–10</div>
+      <div class="phase-body">
+        <div class="pi">RPE target: 7.5–8</div>
+        <div class="pi">Double progression: hit the top of the rep range on every set at RPE ≤ 8, then add the smallest step</div>
+        <div class="pi">RDL: when 32 kg × 12 gets easy, add a 3-second lowering + pause before switching to single-leg (Block 3)</div>
+        <div class="pi">Keep every session under 60 minutes</div>
+      </div>
+    </div>
+
+    <div class="phase-card">
+      <div class="phase-hdr ph3-hdr">Block 2 · Deload — Rotations 11–12</div>
+      <div class="phase-body">
+        <div class="pi">~60% of working weights, 2 sets only</div>
+        <div class="pi">Then reassess and plan Block 3</div>
+        <div class="pi pi-warn">⚠ Deload is non-optional</div>
+      </div>
+    </div>
+
+    <div class="sec-label">Block 1 — May–Oct 2026 (completed)</div>
 
     <div class="phase-card">
       <div class="phase-hdr ph1-hdr">Phase 1 — Weeks 1–6: Structural Base</div>
@@ -2507,13 +2758,13 @@ function plateRange() {
 function plateChipsForToday() {
   const info = getStartDate() ? getCycleInfo(localDateStr()) : null;
   if (!info) return [];
-  const workout = getPhaseExercises(info.dayType, info.phase);
+  const workout = getPhaseExercises(info.dayType, info.phase, info.block);
   if (!workout || !workout.exercises) return [];
   const dKey = localDateStr() + '|' + info.dayType;
   const chips = [];
   workout.exercises.forEach(ex => {
     const claudeR = claudeRecFor(dKey, ex.name);
-    const local   = getExerciseRecommendation(ex.name, ex.reps, info.phase);
+    const local   = getExerciseRecommendation(ex.name, ex.reps, info.phase, info.block);
     const kg = (claudeR && claudeR.kg > 0) ? claudeR.kg : (local && local.kg > 0 ? local.kg : 0);
     if (kg > 0) chips.push({ name: ex.name, kg });
   });
@@ -2657,12 +2908,12 @@ function renderSettings() {
           onchange="saveStartDate(this.value)">
       </div>
       <div class="setting-row">
-        <div class="setting-label">Current Week</div>
-        <div class="setting-val">${info ? 'Week ' + info.weekNum : '—'}</div>
+        <div class="setting-label">${info && info.block === 2 ? 'Current Rotation' : 'Current Week'}</div>
+        <div class="setting-val">${!info ? '—' : info.block === 2 ? info.weekNum + ' of ' + BLOCK2_ROTATIONS : 'Week ' + info.weekNum}</div>
       </div>
       <div class="setting-row">
         <div class="setting-label">Current Phase</div>
-        <div class="setting-val">${info ? 'Phase ' + info.phase + ' of 4' : '—'}</div>
+        <div class="setting-val">${!info ? '—' : info.block === 2 ? phaseLabel(info) : 'Phase ' + info.phase + ' of 4'}</div>
       </div>
       <div class="setting-row">
         <div class="setting-label">Today's Day Type</div>
@@ -2830,8 +3081,8 @@ function handleCoachSend() {
 
 // Structured program context sent to the coach / sequence functions so Claude
 // can see the schedule and today's exercises in program order.
-function buildProgramContext(dayType, phase) {
-  const wk = WORKOUTS[dayType];
+function buildProgramContext(dayType, phase, block) {
+  const wk = getPhaseExercises(dayType, phase, block);
   const ctx = { cycle: DAY_TYPES, dayType, isMobility: false, isRest: false, todayExercises: [] };
   if (!wk) return ctx;
   if (wk.rest) { ctx.isRest = true; return ctx; }
@@ -2844,7 +3095,7 @@ function buildProgramContext(dayType, phase) {
     return ctx;
   }
   ctx.todayExercises = (wk.exercises || []).map(ex => ({
-    name: ex.name, targetReps: ex.reps, sets: getSetsForPhase(ex.name, phase), warning: ex.warning || null
+    name: ex.name, targetReps: ex.reps, sets: getSetsForPhase(ex.name, phase, block), warning: ex.warning || null
   }));
   return ctx;
 }
@@ -2877,11 +3128,12 @@ async function sendToCoach(message) {
 
   const today = localDateStr();
   const info = getStartDate() ? getCycleInfo(today) : null;
+  const block = info ? info.block : 1;
   const phase = info ? info.phase : 1;
   const weekNum = info ? info.weekNum : 1;
   const dayType = info ? info.dayType : '';
-  const isDeload = phase === 4 && weekNum <= 22;
-  const program = buildProgramContext(dayType, phase);
+  const isDeload = isDeloadPhase(phase, weekNum, block);
+  const program = buildProgramContext(dayType, phase, block);
 
   try {
     const res = await fetch(SUPABASE_URL + '/functions/v1/coach', {
@@ -2890,7 +3142,7 @@ async function sendToCoach(message) {
         'content-type': 'application/json',
         'Authorization': 'Bearer ' + session.access_token
       },
-      body: JSON.stringify({ message, phase, weekNum, dayType, isDeload, program })
+      body: JSON.stringify({ message, block, phase, weekNum, dayType, isDeload, program })
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error || 'Request failed');

@@ -80,6 +80,7 @@ Deno.serve(async (req) => {
   if (userErr || !userData.user) return jsonResponse({ error: "Invalid session" }, 401);
 
   let body: {
+    block?: number;
     phase?: number;
     weekNum?: number;
     dayType?: string;
@@ -106,6 +107,7 @@ Deno.serve(async (req) => {
   const dayType = body.dayType ?? "";
 
   const prompt = buildSequencePrompt({
+    block: body.block,
     phase: body.phase ?? 1,
     weekNum: body.weekNum ?? 1,
     dayType,

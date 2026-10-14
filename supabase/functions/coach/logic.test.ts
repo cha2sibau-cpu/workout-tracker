@@ -195,3 +195,20 @@ Deno.test("buildRecommendPrompt lists exercises, program rules, and deload guard
   assertStringIncludes(prompt, "MANDATORY deload week");
   assertStringIncludes(prompt, "6-month, 4-phase periodisation program");
 });
+
+Deno.test("buildRecommendPrompt uses Block 2 rules, rotation label, and planned start weights", () => {
+  const prompt = buildRecommendPrompt({
+    block: 2,
+    phase: 1,
+    weekNum: 1,
+    dayType: "Lower/Core",
+    isDeload: false,
+    lastSameTypeSummary: "Last Lower/Core session (2026-09-25): ...",
+    trendSummary: "Romanian deadlift: 16kg -> 25kg, trend up",
+    exercises: [{ name: "Romanian deadlift", targetReps: "12", recSets: 3, startKg: 24 }],
+  });
+  assertStringIncludes(prompt, "Block 2 of a long-term home-dumbbell program");
+  assertStringIncludes(prompt, "Current state: Block 2, Phase 1, Rotation 1");
+  assertStringIncludes(prompt, "planned starting weight 24 kg");
+  assertEquals(prompt.includes("6-month, 4-phase"), false);
+});

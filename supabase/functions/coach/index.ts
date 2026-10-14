@@ -34,13 +34,13 @@ Deno.serve(async (req) => {
   const { data: userData, error: userErr } = await supabase.auth.getUser();
   if (userErr || !userData.user) return jsonResponse({ error: "Invalid session" }, 401);
 
-  let body: { message?: string; phase?: number; weekNum?: number; dayType?: string; isDeload?: boolean; program?: ProgramContext };
+  let body: { message?: string; block?: number; phase?: number; weekNum?: number; dayType?: string; isDeload?: boolean; program?: ProgramContext };
   try {
     body = await req.json();
   } catch {
     return jsonResponse({ error: "Invalid JSON body" }, 400);
   }
-  const { message, phase, weekNum, dayType, isDeload, program } = body;
+  const { message, block, phase, weekNum, dayType, isDeload, program } = body;
   if (!message || typeof message !== "string") {
     return jsonResponse({ error: "message is required" }, 400);
   }
@@ -71,6 +71,7 @@ Deno.serve(async (req) => {
   const trendSummary = computeTrendSummary(sessionRows.map((r) => r.data));
 
   const prompt = buildCoachPrompt({
+    block,
     phase: phase ?? 1,
     weekNum: weekNum ?? 1,
     dayType: dayType ?? "",
