@@ -547,11 +547,6 @@ const WORKOUTS = {
 // heavy load — and seated OHP is gone. Sessions are sized to stay under 60 min.
 const BLOCK2_START = '2026-10-19';
 const DAY_TYPES_B2 = ['Push','Pull-Compounds','Mobility A','Lower/Core','Mobility B','Push','Pull-Accessories','Rest'];
-// Stored session slots predate Push being Day 1: slot 0 is the block's first
-// Pull-Compounds, which is now Day 2 of rotation 1. The offset maps a slot to its
-// place in DAY_TYPES_B2, so logged sessions keep their slots and their day types.
-const BLOCK2_SLOT_OFFSET = 1;
-function block2DayIndex(slot) { return (slot + BLOCK2_SLOT_OFFSET) % 8; }
 const BLOCK2_ROTATIONS = 12;
 const BLOCK2_PHASE_NAMES = { 1: 'Base', 2: 'Build', 3: 'Deload', 4: 'Complete' };
 function block2Phase(rotation) {
@@ -1060,8 +1055,8 @@ function addDays(dateStr, n) {
 }
 
 // ── Block 2 queue ──
-// Each Block 2 session stores its absolute queue position (`slot`;
-// block2DayIndex(slot) indexes DAY_TYPES_B2). The next open day gets the slot after the last completed
+// Each Block 2 session stores its absolute queue position (`slot`; slot % 8
+// indexes DAY_TYPES_B2). The next open day gets the slot after the last completed
 // session. The Rest slot is consumed by the calendar: if at least one day has
 // already passed since the last session, the rest happened and the queue moves
 // on. Days after the next open day are projected one slot per day.
@@ -1079,7 +1074,7 @@ function block2SlotFor(dateStr) {
   let openDay = last && last.date === today ? addDays(today, 1) : today;
   if (openDay < BLOCK2_START) openDay = BLOCK2_START;
   let slot = last ? last.slot + 1 : 0;
-  if (DAY_TYPES_B2[block2DayIndex(slot)] === 'Rest' && last && daysBetween(last.date, openDay) > 1) slot++;
+  if (DAY_TYPES_B2[slot % 8] === 'Rest' && last && daysBetween(last.date, openDay) > 1) slot++;
   return slot + daysBetween(openDay, dateStr);
 }
 
@@ -1087,10 +1082,9 @@ function block2CycleInfo(dateStr) {
   const slot = block2SlotFor(dateStr);
   const paused = isPausedOn(dateStr);
   if (slot === null) return { block: 2, slot: null, cycleDay: null, weekNum: null, phase: null, dayType: null, cycleLen: 8, paused };
-  const weekNum = Math.floor((slot + BLOCK2_SLOT_OFFSET) / 8) + 1; // rotation number
-  const dayIndex = block2DayIndex(slot);
-  return { block: 2, slot, cycleDay: dayIndex + 1, weekNum, phase: block2Phase(weekNum),
-    dayType: DAY_TYPES_B2[dayIndex], cycleLen: 8, paused };
+  const weekNum = Math.floor(slot / 8) + 1; // rotation number
+  return { block: 2, slot, cycleDay: (slot % 8) + 1, weekNum, phase: block2Phase(weekNum),
+    dayType: DAY_TYPES_B2[slot % 8], cycleLen: 8, paused };
 }
 
 function getCycleInfo(dateStr) {
