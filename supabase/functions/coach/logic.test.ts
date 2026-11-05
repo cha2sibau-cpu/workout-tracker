@@ -209,6 +209,7 @@ Deno.test("buildRecommendPrompt uses Block 2 rules, rotation label, and planned 
   });
   assertStringIncludes(prompt, "Block 2 of a long-term home-dumbbell program");
   assertStringIncludes(prompt, "Current state: Block 2, Phase 1, Rotation 1");
+  assertStringIncludes(prompt, "run as a queue — Push, Pull-Compounds, Mobility A");
   assertStringIncludes(prompt, "planned starting weight 24 kg");
   assertEquals(prompt.includes("6-month, 4-phase"), false);
 });

@@ -90,7 +90,7 @@ export const PLAN_RULES = `This is a 6-month, 4-phase periodisation program, 7-d
 // Block 2 (from 2026-10-19). Progression is counted in rotations of the 8-day
 // queue (a missed day never skips a workout — the next one just waits), so
 // "weekNum" means rotation number for this block.
-export const PLAN_RULES_B2 = `This is Block 2 of a long-term home-dumbbell program (Block 1 was a 26-week, 4-phase program that ended with a deload). 8-day rotation run as a queue — Pull-Compounds, Mobility A, Lower/Core, Mobility B, Push, Pull-Accessories, Rest, Push — so a missed day never skips a workout. 12 rotations:
+export const PLAN_RULES_B2 = `This is Block 2 of a long-term home-dumbbell program (Block 1 was a 26-week, 4-phase program that ended with a deload). 8-day rotation run as a queue — Push, Pull-Compounds, Mobility A, Lower/Core, Mobility B, Push, Pull-Accessories, Rest — so a missed day never skips a workout. 12 rotations:
 - Phase 1 Base (rotations 1-4): RPE 7. Main lifts 3 sets, accessories 2-3 sets.
 - Phase 2 Build (rotations 5-10): RPE 7.5-8. Double progression: add reps until every set hits the top of the rep range at RPE 8 or below, then add the smallest load step.
 - Phase 3 Deload (rotations 11-12): ~60% of working weights, 2 sets (mandatory).
